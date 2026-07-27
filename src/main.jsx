@@ -615,14 +615,6 @@ function RatingRangeFilter({ value, onChange, resultCount, totalCount }) {
   );
 }
 
-const ROULETTE_PHASE_LABELS = {
-  idle: "레버를 당겨 랜덤 맵을 추첨하세요.",
-  hundreds: "백의 자리를 결정하는 중",
-  tens: "십의 자리를 결정하는 중",
-  ones: "일의 자리를 천천히 결정하는 중",
-  complete: "추첨이 완료되었습니다.",
-};
-
 function getRandomIndex(length) {
   if (length <= 1) return 0;
 
@@ -929,13 +921,13 @@ function RoulettePage({ maps }) {
         const releaseTimer = window.setTimeout(() => {
           timeoutIds.current.delete(releaseTimer);
           setLeverProgress(0);
-        }, 180);
+        }, 430);
         timeoutIds.current.add(releaseTimer);
 
         const unlockTimer = window.setTimeout(() => {
           timeoutIds.current.delete(unlockTimer);
           leverTriggerRef.current = false;
-        }, 650);
+        }, 1500);
         timeoutIds.current.add(unlockTimer);
       };
 
@@ -945,7 +937,7 @@ function RoulettePage({ maps }) {
         const bottomHoldTimer = window.setTimeout(() => {
           timeoutIds.current.delete(bottomHoldTimer);
           startSpin();
-        }, 90);
+        }, 360);
         timeoutIds.current.add(bottomHoldTimer);
         return;
       }
@@ -956,7 +948,7 @@ function RoulettePage({ maps }) {
       const pullTimer = window.setTimeout(() => {
         timeoutIds.current.delete(pullTimer);
         startSpin();
-      }, 330);
+      }, 760);
       timeoutIds.current.add(pullTimer);
     },
     [candidates.length, setLeverProgress, spinRoulette, spinning],
@@ -987,7 +979,7 @@ function RoulettePage({ maps }) {
 
       event.preventDefault();
       const distance = Math.max(0, event.clientY - drag.startY);
-      setLeverProgress(distance / 108);
+      setLeverProgress(distance / 156);
     },
     [setLeverProgress],
   );
@@ -1027,7 +1019,6 @@ function RoulettePage({ maps }) {
     [triggerLeverSpin],
   );
 
-  const phaseLabel = ROULETTE_PHASE_LABELS[phase];
   const resultNumber = result ? String(result.rank).padStart(3, "0") : null;
   const singleDigitFocus =
     phase === "ones" &&
@@ -1071,11 +1062,6 @@ function RoulettePage({ maps }) {
 
         <div className="slot-machine-body">
           <div className="slot-machine-display">
-            <div className="slot-machine-status" aria-live="polite">
-              <span className={`slot-status-light ${spinning ? "active" : ""}`} />
-              <strong>{phaseLabel}</strong>
-            </div>
-
             <div
               className="slot-reels"
               aria-label={spinning ? "슬롯 숫자 회전 중" : `현재 숫자 ${digits.join("")}`}
