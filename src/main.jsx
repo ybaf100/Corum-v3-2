@@ -653,83 +653,6 @@ function waitForRoulette(milliseconds, timerSet, token, tokenRef) {
   });
 }
 
-const SLOT_REEL_DIGITS = Array.from({ length: 180 }, (_, index) => index % 10);
-
-function getNormalizedReelOffset(digit) {
-  return 10 + Number(digit || 0);
-}
-
-function getTargetReelOffset(startOffset, targetDigit, cycles) {
-  const roundedStart = Math.round(startOffset);
-  const currentDigit = ((roundedStart % 10) + 10) % 10;
-  const target = Number(targetDigit);
-  const forwardSteps = (target - currentDigit + 10) % 10;
-
-  return roundedStart + cycles * 10 + forwardSteps;
-}
-
-function getReelTransform(offset, reelHeight) {
-  return `translate3d(0, ${-(offset * reelHeight)}px, 0)`;
-}
-
-function animateSlotReel({
-  track,
-  startOffset,
-  endOffset,
-  duration,
-  reelHeight,
-}) {
-  if (!track) return null;
-
-  const totalDistance = endOffset - startOffset;
-  const launchOffset = startOffset + totalDistance * 0.12;
-  const cruiseOffset = startOffset + totalDistance * 0.68;
-  const brakingDistance = Math.min(9.4, Math.max(4.2, totalDistance * 0.14));
-  const brakingOffset = Math.max(cruiseOffset + 1, endOffset - brakingDistance);
-
-  const keyframes = [
-    {
-      transform: getReelTransform(startOffset, reelHeight),
-      offset: 0,
-      easing: "cubic-bezier(.34, 0, .48, 1)",
-    },
-    {
-      transform: getReelTransform(launchOffset, reelHeight),
-      offset: 0.1,
-      easing: "linear",
-    },
-    {
-      transform: getReelTransform(cruiseOffset, reelHeight),
-      offset: 0.64,
-      easing: "cubic-bezier(.08, .62, .15, 1)",
-    },
-    {
-      transform: getReelTransform(brakingOffset, reelHeight),
-      offset: 0.9,
-      easing: "cubic-bezier(.12, .72, .2, 1)",
-    },
-    {
-      transform: getReelTransform(endOffset, reelHeight),
-      offset: 1,
-    },
-  ];
-
-  if (typeof track.animate !== "function") {
-    track.style.transform = getReelTransform(endOffset, reelHeight);
-    return {
-      finished: new Promise((resolve) => window.setTimeout(resolve, duration)),
-      cancel() {},
-    };
-  }
-
-  return track.animate(keyframes, {
-    duration,
-    iterations: 1,
-    fill: "forwards",
-    easing: "linear",
-  });
-}
-
 function RoulettePage({ maps }) {
   const candidates = useMemo(() => getRouletteCandidates(maps), [maps]);
   const [digits, setDigits] = React.useState(["0", "0", "0"]);
@@ -738,73 +661,192 @@ function RoulettePage({ maps }) {
   const [spinning, setSpinning] = React.useState(false);
   const [result, setResult] = React.useState(null);
   const [targetDigits, setTargetDigits] = React.useState(null);
+  const [settlingReel, setSettlingReel] = React.useState(-1);
+  const [leverPull, setLeverPull] = React.useState(0);
 
-  const reelViewportRefs = React.useRef([]);
-  const reelTrackRefs = React.useRef([]);
-  const reelOffsets = React.useRef([10, 10, 10]);
-  const reelAnimations = React.useRef([null, null, null]);
+  const timeoutIds = React.useRef(new Set());
   const spinToken = React.useRef(0);
+  const reelTrackRefs = React.useRef([]);
+  const reelFrameRefs = React.useRef([null, null, null]);
+  const reelMotionRefs = React.useRef([
+    { position: 20, velocity: 0, lastTime: 0 },
+    { position: 20, velocity: 0, lastTime: 0 },
+    { position: 20, velocity: 0, lastTime: 0 },
+  ]);
+  const leverDragRef = React.useRef({
+    active: false,
+    pointerId: null,
+    startY: 0,
+    progress: 0,
+  });
+  const leverTriggerRef = React.useRef(false);
 
-  const cancelReelAnimations = React.useCallback(() => {
-    reelAnimations.current.forEach((animation) => {
-      try {
-        animation?.cancel();
-      } catch {
-        // Animation may already be finished.
-      }
+  const clearAnimations = React.useCallback(() => {
+    timeoutIds.current.forEach((timer) => window.clearTimeout(timer));
+    timeoutIds.current.clear();
+
+    reelFrameRefs.current.forEach((frameId, index) => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      reelFrameRefs.current[index] = null;
     });
-    reelAnimations.current = [null, null, null];
   }, []);
-
-  const alignTracksToDigits = React.useCallback(() => {
-    if (spinning) return;
-
-    reelTrackRefs.current.forEach((track, index) => {
-      const viewport = reelViewportRefs.current[index];
-      if (!track || !viewport) return;
-
-      const offset = getNormalizedReelOffset(digits[index]);
-      reelOffsets.current[index] = offset;
-      track.style.transform = getReelTransform(offset, viewport.clientHeight);
-    });
-  }, [digits, spinning]);
-
-  React.useLayoutEffect(() => {
-    alignTracksToDigits();
-
-    const handleResize = () => alignTracksToDigits();
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
-  }, [alignTracksToDigits]);
 
   React.useEffect(
     () => () => {
       spinToken.current += 1;
-      cancelReelAnimations();
+      clearAnimations();
     },
-    [cancelReelAnimations],
+    [clearAnimations],
   );
 
-  const settleDisplayedDigit = React.useCallback((index, targetDigit) => {
+  const setDigit = React.useCallback((index, value) => {
     setDigits((current) => {
       const next = [...current];
-      next[index] = String(targetDigit);
-      return next;
-    });
-
-    setStoppedReels((current) => {
-      const next = [...current];
-      next[index] = true;
+      next[index] = String(value);
       return next;
     });
   }, []);
 
+  const applyReelPosition = React.useCallback((index, position, motion = 1) => {
+    const track = reelTrackRefs.current[index];
+    if (!track) return;
+
+    track.style.setProperty("--reel-position", position.toFixed(5));
+    track.style.setProperty("--reel-motion", String(Math.max(0, Math.min(1, motion))));
+  }, []);
+
+  const cancelReelFrame = React.useCallback((index) => {
+    const frameId = reelFrameRefs.current[index];
+    if (frameId !== null) {
+      window.cancelAnimationFrame(frameId);
+      reelFrameRefs.current[index] = null;
+    }
+  }, []);
+
+  const startContinuousReel = React.useCallback(
+    (index, velocity, token) => {
+      cancelReelFrame(index);
+
+      const motionState = reelMotionRefs.current[index];
+      motionState.velocity = velocity;
+      motionState.lastTime = performance.now();
+
+      const frame = (now) => {
+        if (token !== spinToken.current) return;
+
+        const elapsed = Math.min((now - motionState.lastTime) / 1000, 0.04);
+        motionState.lastTime = now;
+        motionState.position += motionState.velocity * elapsed;
+
+        // The strip repeats every ten cells, so this reset is visually seamless.
+        if (motionState.position >= 30) motionState.position -= 10;
+
+        applyReelPosition(index, motionState.position, 1);
+        reelFrameRefs.current[index] = window.requestAnimationFrame(frame);
+      };
+
+      reelFrameRefs.current[index] = window.requestAnimationFrame(frame);
+    },
+    [applyReelPosition, cancelReelFrame],
+  );
+
+  const settleReel = React.useCallback(
+    (index, targetDigit, duration, minimumTurns, token) =>
+      new Promise((resolve) => {
+        cancelReelFrame(index);
+        setSettlingReel(index);
+
+        const motionState = reelMotionRefs.current[index];
+        const startPosition = motionState.position;
+        const startVelocity = Math.max(0.01, motionState.velocity);
+        const durationSeconds = duration / 1000;
+        const numericTarget = Number(targetDigit);
+
+        // With constant deceleration, distance is v0 * T / 2.
+        const naturalStopPosition =
+          startPosition + (startVelocity * durationSeconds) / 2;
+        const minimumTarget = startPosition + minimumTurns * 10;
+
+        const firstTargetAtOrAfter = (position) =>
+          Math.ceil((position - numericTarget) / 10) * 10 + numericTarget;
+
+        const lowerCandidate = firstTargetAtOrAfter(
+          Math.max(minimumTarget, naturalStopPosition - 5),
+        );
+        const upperCandidate = lowerCandidate + 10;
+
+        const targetPosition =
+          Math.abs(lowerCandidate - naturalStopPosition) <=
+          Math.abs(upperCandidate - naturalStopPosition)
+            ? lowerCandidate
+            : upperCandidate;
+
+        const naturalDistance = (startVelocity * durationSeconds) / 2;
+        const endpointCorrection =
+          targetPosition - (startPosition + naturalDistance);
+        const startedAt = performance.now();
+
+        const frame = (now) => {
+          if (token !== spinToken.current) {
+            resolve(false);
+            return;
+          }
+
+          const progress = Math.min((now - startedAt) / duration, 1);
+
+          // Constant-deceleration baseline:
+          // x(u) = x0 + v0*T*(u - u²/2)
+          const decelerationBase =
+            startPosition +
+            startVelocity *
+              durationSeconds *
+              (progress - (progress * progress) / 2);
+
+          // Quintic smoothstep has zero first/second derivatives at both ends,
+          // so correcting to the exact digit never creates a visible jerk.
+          const smoothCorrection =
+            progress * progress * progress *
+            (10 + progress * (-15 + progress * 6));
+
+          const position =
+            decelerationBase + endpointCorrection * smoothCorrection;
+          const remainingMotion = Math.pow(1 - progress, 1.15);
+
+          motionState.position = position;
+          motionState.velocity = startVelocity * (1 - progress);
+          applyReelPosition(index, position, remainingMotion);
+
+          if (progress < 1) {
+            reelFrameRefs.current[index] = window.requestAnimationFrame(frame);
+            return;
+          }
+
+          // The repeated strip is already exactly on the winning cell.
+          // Reset to the equivalent middle copy only after all motion is zero.
+          motionState.position = 20 + numericTarget;
+          motionState.velocity = 0;
+          applyReelPosition(index, motionState.position, 0);
+          reelFrameRefs.current[index] = null;
+
+          setDigit(index, numericTarget);
+          setStoppedReels((current) => {
+            const next = [...current];
+            next[index] = true;
+            return next;
+          });
+          setSettlingReel(-1);
+          resolve(true);
+        };
+
+        reelFrameRefs.current[index] = window.requestAnimationFrame(frame);
+      }),
+    [applyReelPosition, cancelReelFrame, setDigit],
+  );
+
   const spinRoulette = React.useCallback(async () => {
     if (spinning || candidates.length === 0) return;
 
-    cancelReelAnimations();
-
+    clearAnimations();
     const token = spinToken.current + 1;
     spinToken.current = token;
 
@@ -817,102 +859,173 @@ function RoulettePage({ maps }) {
     setSpinning(true);
     setResult(null);
     setTargetDigits(nextTargetDigits);
+    setSettlingReel(-1);
     setPhase("hundreds");
     setStoppedReels([false, false, false]);
 
-    const durations = [2350, 3550, 6350];
-    const cycles = [5, 8, 14];
-
-    const animations = reelTrackRefs.current.map((track, index) => {
-      const viewport = reelViewportRefs.current[index];
-      if (!track || !viewport) return null;
-
-      const startOffset = getNormalizedReelOffset(digits[index]);
-      const endOffset = getTargetReelOffset(
-        startOffset,
-        nextTargetDigits[index],
-        cycles[index],
-      );
-
-      reelOffsets.current[index] = endOffset;
-      track.style.transform = getReelTransform(
-        startOffset,
-        viewport.clientHeight,
-      );
-
-      return animateSlotReel({
-        track,
-        startOffset,
-        endOffset,
-        duration: durations[index],
-        reelHeight: viewport.clientHeight,
-      });
+    reelMotionRefs.current.forEach((motionState, index) => {
+      motionState.position = 20 + Number(digits[index]);
+      applyReelPosition(index, motionState.position, 1);
     });
 
-    reelAnimations.current = animations;
+    startContinuousReel(0, 11.8, token);
+    startContinuousReel(1, 12.9, token);
+    startContinuousReel(2, 14.1, token);
 
-    try {
-      await animations[0]?.finished;
-      if (token !== spinToken.current) return;
+    let stillCurrent = await waitForRoulette(820, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
 
-      const firstTrack = reelTrackRefs.current[0];
-      const firstViewport = reelViewportRefs.current[0];
-      if (firstTrack && firstViewport) {
-        firstTrack.style.transform = getReelTransform(
-          reelOffsets.current[0],
-          firstViewport.clientHeight,
-        );
-      }
-      animations[0]?.cancel();
-      settleDisplayedDigit(0, nextTargetDigits[0]);
-      setPhase("tens");
+    stillCurrent = await settleReel(0, nextTargetDigits[0], 1500, 1.2, token);
+    if (!stillCurrent) return;
 
-      await animations[1]?.finished;
-      if (token !== spinToken.current) return;
+    setPhase("tens");
+    stillCurrent = await waitForRoulette(140, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
 
-      const secondTrack = reelTrackRefs.current[1];
-      const secondViewport = reelViewportRefs.current[1];
-      if (secondTrack && secondViewport) {
-        secondTrack.style.transform = getReelTransform(
-          reelOffsets.current[1],
-          secondViewport.clientHeight,
-        );
-      }
-      animations[1]?.cancel();
-      settleDisplayedDigit(1, nextTargetDigits[1]);
-      setPhase("ones");
+    stillCurrent = await settleReel(1, nextTargetDigits[1], 2050, 1.7, token);
+    if (!stillCurrent) return;
 
-      await animations[2]?.finished;
-      if (token !== spinToken.current) return;
+    setPhase("ones");
+    stillCurrent = await waitForRoulette(180, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
 
-      const thirdTrack = reelTrackRefs.current[2];
-      const thirdViewport = reelViewportRefs.current[2];
-      if (thirdTrack && thirdViewport) {
-        thirdTrack.style.transform = getReelTransform(
-          reelOffsets.current[2],
-          thirdViewport.clientHeight,
-        );
-      }
-      animations[2]?.cancel();
-      settleDisplayedDigit(2, nextTargetDigits[2]);
+    stillCurrent = await settleReel(2, nextTargetDigits[2], 4800, 2.8, token);
+    if (!stillCurrent) return;
 
-      setResult(selectedMap);
-      setPhase("complete");
-      setSpinning(false);
-      reelAnimations.current = [null, null, null];
-    } catch {
-      if (token === spinToken.current) {
-        setSpinning(false);
-        setPhase("idle");
-      }
-    }
+    setResult(selectedMap);
+    setPhase("complete");
+    setSpinning(false);
   }, [
+    applyReelPosition,
     candidates,
-    cancelReelAnimations,
+    clearAnimations,
     digits,
-    settleDisplayedDigit,
+    settleReel,
     spinning,
+    startContinuousReel,
   ]);
+
+  const setLeverProgress = React.useCallback((progress) => {
+    const normalized = Math.max(0, Math.min(1, progress));
+    leverDragRef.current.progress = normalized;
+    setLeverPull(normalized);
+  }, []);
+
+  const triggerLeverSpin = React.useCallback(
+    ({ alreadyPulled = false } = {}) => {
+      if (
+        spinning ||
+        candidates.length === 0 ||
+        leverTriggerRef.current
+      ) {
+        return;
+      }
+
+      leverTriggerRef.current = true;
+
+      const startSpin = () => {
+        spinRoulette();
+
+        const releaseTimer = window.setTimeout(() => {
+          timeoutIds.current.delete(releaseTimer);
+          setLeverProgress(0);
+        }, 180);
+        timeoutIds.current.add(releaseTimer);
+
+        const unlockTimer = window.setTimeout(() => {
+          timeoutIds.current.delete(unlockTimer);
+          leverTriggerRef.current = false;
+        }, 650);
+        timeoutIds.current.add(unlockTimer);
+      };
+
+      if (alreadyPulled) {
+        setLeverProgress(1);
+
+        const bottomHoldTimer = window.setTimeout(() => {
+          timeoutIds.current.delete(bottomHoldTimer);
+          startSpin();
+        }, 90);
+        timeoutIds.current.add(bottomHoldTimer);
+        return;
+      }
+
+      // Keyboard/tap activation performs a complete physical pull first.
+      setLeverProgress(1);
+
+      const pullTimer = window.setTimeout(() => {
+        timeoutIds.current.delete(pullTimer);
+        startSpin();
+      }, 330);
+      timeoutIds.current.add(pullTimer);
+    },
+    [candidates.length, setLeverProgress, spinRoulette, spinning],
+  );
+
+  const beginLeverPull = React.useCallback(
+    (event) => {
+      if (spinning || candidates.length === 0) return;
+
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+
+      leverDragRef.current = {
+        active: true,
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        progress: 0,
+      };
+      setLeverProgress(0);
+    },
+    [candidates.length, setLeverProgress, spinning],
+  );
+
+  const moveLeverPull = React.useCallback(
+    (event) => {
+      const drag = leverDragRef.current;
+      if (!drag.active || drag.pointerId !== event.pointerId) return;
+
+      event.preventDefault();
+      const distance = Math.max(0, event.clientY - drag.startY);
+      setLeverProgress(distance / 108);
+    },
+    [setLeverProgress],
+  );
+
+  const finishLeverPull = React.useCallback(
+    (event) => {
+      const drag = leverDragRef.current;
+      if (!drag.active || drag.pointerId !== event.pointerId) return;
+
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      const progress = drag.progress;
+      leverDragRef.current.active = false;
+
+      // A full pull triggers the spin. A simple tap also performs a complete pull.
+      if (progress >= 0.58) {
+        triggerLeverSpin({ alreadyPulled: true });
+      } else if (progress < 0.07) {
+        triggerLeverSpin();
+      } else {
+        setLeverProgress(0);
+      }
+    },
+    [setLeverProgress, triggerLeverSpin],
+  );
+
+  const cancelLeverPull = React.useCallback(() => {
+    leverDragRef.current.active = false;
+    setLeverProgress(0);
+  }, [setLeverProgress]);
+
+  const handleLeverKey = React.useCallback(
+    (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      triggerLeverSpin();
+    },
+    [triggerLeverSpin],
+  );
 
   const phaseLabel = ROULETTE_PHASE_LABELS[phase];
   const resultNumber = result ? String(result.rank).padStart(3, "0") : null;
@@ -921,13 +1034,13 @@ function RoulettePage({ maps }) {
     targetDigits?.[0] === "0" &&
     targetDigits?.[1] === "0";
 
-  const visibleRank = digits
-    .map((digit, index) => (stoppedReels[index] ? digit : "—"))
-    .join("");
+  const reelCells = Array.from({ length: 80 }, (_, index) => index % 10);
 
   return (
     <section
-      className={`roulette-page ${singleDigitFocus ? "is-focus-mode" : ""}`}
+      className={`roulette-page ${
+        singleDigitFocus ? "is-single-digit-focus-page" : ""
+      }`}
     >
       {singleDigitFocus ? (
         <div className="roulette-focus-overlay" aria-hidden="true" />
@@ -963,40 +1076,33 @@ function RoulettePage({ maps }) {
               <strong>{phaseLabel}</strong>
             </div>
 
-            <div className="slot-reels" aria-label={`현재 순위 ${visibleRank}`}>
-              {[0, 1, 2].map((index) => (
+            <div
+              className="slot-reels"
+              aria-label={spinning ? "슬롯 숫자 회전 중" : `현재 숫자 ${digits.join("")}`}
+            >
+              {digits.map((digit, index) => (
                 <div
                   className={`slot-reel ${
                     spinning && !stoppedReels[index] ? "is-rolling" : ""
-                  } ${
-                    phase === "hundreds" && index === 0
-                      ? "is-braking"
-                      : phase === "tens" && index === 1
-                        ? "is-braking"
-                        : phase === "ones" && index === 2
-                          ? "is-braking"
-                          : ""
-                  } ${stoppedReels[index] ? "is-stopped" : ""}`}
+                  } ${settlingReel === index ? "is-decelerating" : ""} ${
+                    stoppedReels[index] ? "is-stopped" : ""
+                  }`}
                   key={index}
-                  ref={(node) => {
-                    reelViewportRefs.current[index] = node;
-                  }}
                   style={{ "--reel-index": index }}
                 >
                   <div
                     className="slot-reel-track"
-                    ref={(node) => {
-                      reelTrackRefs.current[index] = node;
+                    ref={(element) => {
+                      reelTrackRefs.current[index] = element;
                     }}
                     style={{
-                      "--reel-item-count": SLOT_REEL_DIGITS.length,
-                      height: `${SLOT_REEL_DIGITS.length * 100}%`,
-                      gridTemplateRows: `repeat(${SLOT_REEL_DIGITS.length}, 1fr)`,
+                      "--reel-position": 20 + Number(digit),
+                      "--reel-motion": 0,
                     }}
                     aria-hidden="true"
                   >
-                    {SLOT_REEL_DIGITS.map((digit, digitIndex) => (
-                      <span key={`${index}-${digitIndex}`}>{digit}</span>
+                    {reelCells.map((cellDigit, cellIndex) => (
+                      <span key={cellIndex}>{cellDigit}</span>
                     ))}
                   </div>
 
@@ -1008,24 +1114,42 @@ function RoulettePage({ maps }) {
 
             <div className="slot-machine-number-line">
               <span>RANK</span>
-              <strong>{visibleRank}</strong>
+              <strong>{spinning ? "•••" : digits.join("")}</strong>
             </div>
           </div>
 
           <button
-            className={`slot-lever ${spinning ? "is-pulled" : ""}`}
+            className={`slot-lever ${leverPull > 0.04 ? "is-dragging" : ""}`}
             type="button"
-            onClick={spinRoulette}
             disabled={spinning || candidates.length === 0}
-            aria-label={spinning ? "슬롯머신 추첨 중" : "레버를 당겨 맵 추첨"}
+            onPointerDown={beginLeverPull}
+            onPointerMove={moveLeverPull}
+            onPointerUp={finishLeverPull}
+            onPointerCancel={cancelLeverPull}
+            onLostPointerCapture={cancelLeverPull}
+            onKeyDown={handleLeverKey}
+            aria-label={
+              spinning
+                ? "슬롯머신 추첨 중"
+                : "레버 손잡이를 아래로 당겨 맵 추첨"
+            }
+            style={{
+              "--lever-pull": leverPull,
+            }}
           >
-            <span className="slot-lever-rail" aria-hidden="true">
+            <span className="slot-lever-housing" aria-hidden="true">
+              <span className="slot-lever-groove" />
+              <span className="slot-lever-spring" />
+              <span className="slot-lever-carriage" />
               <span className="slot-lever-arm">
                 <span className="slot-lever-knob" />
               </span>
             </span>
-            <strong>{spinning ? "SPINNING" : "PULL"}</strong>
-            <small>{spinning ? "추첨 중" : "레버 클릭"}</small>
+
+            <span className="slot-lever-copy">
+              <strong>{spinning ? "SPINNING" : "PULL"}</strong>
+              <small>{spinning ? "추첨 중" : "아래로 당기기"}</small>
+            </span>
           </button>
         </div>
       </article>
@@ -1068,14 +1192,13 @@ function RoulettePage({ maps }) {
           <div className="roulette-result-placeholder">
             <span>RESULT</span>
             <h2>아직 추첨된 맵이 없습니다.</h2>
-            <p>오른쪽 레버를 클릭하면 슬롯이 돌아갑니다.</p>
+            <p>오른쪽 레버를 아래로 당기면 슬롯이 돌아갑니다.</p>
           </div>
         )}
       </section>
     </section>
   );
 }
-
 
 function ListPage({ maps, initialQuery = "" }) {
   const [query, setQuery] = React.useState(initialQuery);
