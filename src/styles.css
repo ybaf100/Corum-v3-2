@@ -3918,3 +3918,35 @@ svg { width: 1em; height: 1em; display: block; }
     height: 57px;
   }
 }
+
+/* -------------------------------------------------------------------------
+   Live candidate card after the hundreds reel stops
+   ------------------------------------------------------------------------- */
+.roulette-result-card.is-live-preview {
+  grid-template-columns: 145px 190px minmax(0, 1fr);
+  animation: none;
+  transition:
+    border-color .12s linear,
+    box-shadow .12s linear;
+}
+
+.roulette-result-card.is-live-preview .ranking-thumbnail img {
+  transition: opacity .1s linear;
+}
+
+.roulette-live-empty {
+  min-height: 205px;
+  width: 100%;
+}
+
+@media (max-width: 820px) {
+  .roulette-result-card.is-live-preview {
+    grid-template-columns: 110px 150px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .roulette-result-card.is-live-preview {
+    grid-template-columns: 86px minmax(0, 1fr);
+  }
+}

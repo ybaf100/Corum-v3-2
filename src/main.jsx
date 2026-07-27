@@ -645,6 +645,53 @@ function waitForRoulette(milliseconds, timerSet, token, tokenRef) {
   });
 }
 
+function RouletteMapCard({ item, preview = false }) {
+  const rankNumber = String(item.rank).padStart(3, "0");
+
+  return (
+    <article
+      className={`roulette-result-card ${getRankBorderClass(item.rank)} ${
+        preview ? "is-live-preview" : ""
+      }`}
+    >
+      <div className="roulette-result-rank">
+        <span>{preview ? "CURRENT RANK" : "WINNING RANK"}</span>
+        <strong>#{rankNumber}</strong>
+        <small>{getTier(item.rank)}</small>
+      </div>
+
+      <RankingThumbnail item={item} />
+
+      <div className="roulette-result-copy">
+        <p className="section-kicker">
+          {preview ? "CURRENT MAP" : "SELECTED MAP"}
+        </p>
+        <h2>{item.title}</h2>
+        <p>
+          by <strong>{item.creator || "Unknown"}</strong>
+          <span aria-hidden="true"> · </span>
+          verified by <strong>{item.verifier || "Unknown"}</strong>
+        </p>
+
+        <div className="badge-row">
+          <RatingBadge rating={item.rating} compact />
+          <LengthBadge length={item.length} compact />
+          <span className="neutral-badge">ID {item.levelId || "-"}</span>
+        </div>
+      </div>
+
+      {preview ? null : (
+        <a
+          className="roulette-detail-link"
+          href={`#/maps/${getMapKey(item)}`}
+        >
+          상세 보기 <ArrowIcon />
+        </a>
+      )}
+    </article>
+  );
+}
+
 function RoulettePage({ maps }) {
   const candidates = useMemo(() => getRouletteCandidates(maps), [maps]);
   const [digits, setDigits] = React.useState(["0", "0", "0"]);
@@ -655,6 +702,7 @@ function RoulettePage({ maps }) {
   const [targetDigits, setTargetDigits] = React.useState(null);
   const [settlingReel, setSettlingReel] = React.useState(-1);
   const [leverPull, setLeverPull] = React.useState(0);
+  const [livePreviewDigits, setLivePreviewDigits] = React.useState(["0", "0", "0"]);
 
   const timeoutIds = React.useRef(new Set());
   const spinToken = React.useRef(0);
@@ -672,6 +720,9 @@ function RoulettePage({ maps }) {
     progress: 0,
   });
   const leverTriggerRef = React.useRef(false);
+  const liveDigitsRef = React.useRef(["0", "0", "0"]);
+  const livePreviewTimerRef = React.useRef(null);
+  const livePreviewLastPublishRef = React.useRef(0);
 
   const clearAnimations = React.useCallback(() => {
     timeoutIds.current.forEach((timer) => window.clearTimeout(timer));
@@ -681,6 +732,11 @@ function RoulettePage({ maps }) {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
       reelFrameRefs.current[index] = null;
     });
+
+    if (livePreviewTimerRef.current !== null) {
+      window.clearTimeout(livePreviewTimerRef.current);
+      livePreviewTimerRef.current = null;
+    }
   }, []);
 
   React.useEffect(
@@ -699,13 +755,56 @@ function RoulettePage({ maps }) {
     });
   }, []);
 
-  const applyReelPosition = React.useCallback((index, position, motion = 1) => {
-    const track = reelTrackRefs.current[index];
-    if (!track) return;
-
-    track.style.setProperty("--reel-position", position.toFixed(5));
-    track.style.setProperty("--reel-motion", String(Math.max(0, Math.min(1, motion))));
+  const publishLivePreviewDigits = React.useCallback(() => {
+    livePreviewLastPublishRef.current = performance.now();
+    livePreviewTimerRef.current = null;
+    setLivePreviewDigits([...liveDigitsRef.current]);
   }, []);
+
+  const updateLiveDigit = React.useCallback(
+    (index, position) => {
+      const centeredDigit = String(
+        ((Math.round(position) % 10) + 10) % 10,
+      );
+
+      if (liveDigitsRef.current[index] === centeredDigit) return;
+
+      const nextDigits = [...liveDigitsRef.current];
+      nextDigits[index] = centeredDigit;
+      liveDigitsRef.current = nextDigits;
+
+      const elapsed =
+        performance.now() - livePreviewLastPublishRef.current;
+      const publishInterval = 95;
+
+      if (elapsed >= publishInterval) {
+        publishLivePreviewDigits();
+        return;
+      }
+
+      if (livePreviewTimerRef.current !== null) return;
+
+      livePreviewTimerRef.current = window.setTimeout(() => {
+        publishLivePreviewDigits();
+      }, publishInterval - elapsed);
+    },
+    [publishLivePreviewDigits],
+  );
+
+  const applyReelPosition = React.useCallback(
+    (index, position, motion = 1) => {
+      const track = reelTrackRefs.current[index];
+      if (!track) return;
+
+      track.style.setProperty("--reel-position", position.toFixed(5));
+      track.style.setProperty(
+        "--reel-motion",
+        String(Math.max(0, Math.min(1, motion))),
+      );
+      updateLiveDigit(index, position);
+    },
+    [updateLiveDigit],
+  );
 
   const cancelReelFrame = React.useCallback((index) => {
     const frameId = reelFrameRefs.current[index];
@@ -847,6 +946,11 @@ function RoulettePage({ maps }) {
       .padStart(3, "0")
       .slice(-3)
       .split("");
+
+    const startingDigits = [...digits];
+    liveDigitsRef.current = startingDigits;
+    setLivePreviewDigits(startingDigits);
+    livePreviewLastPublishRef.current = performance.now();
 
     setSpinning(true);
     setResult(null);
@@ -1019,11 +1123,23 @@ function RoulettePage({ maps }) {
     [triggerLeverSpin],
   );
 
-  const resultNumber = result ? String(result.rank).padStart(3, "0") : null;
   const singleDigitFocus =
     phase === "ones" &&
     targetDigits?.[0] === "0" &&
     targetDigits?.[1] === "0";
+
+  const livePreviewActive = spinning && stoppedReels[0];
+  const livePreviewRankText = livePreviewDigits.join("");
+  const livePreviewRank = Number(livePreviewRankText);
+  const livePreviewMap = useMemo(
+    () =>
+      livePreviewActive
+        ? candidates.find(
+            (item) => Number(item.rank) === livePreviewRank,
+          ) || null
+        : null,
+    [candidates, livePreviewActive, livePreviewRank],
+  );
 
   const reelCells = Array.from({ length: 80 }, (_, index) => index % 10);
 
@@ -1142,38 +1258,16 @@ function RoulettePage({ maps }) {
 
       <section className="roulette-result-section" aria-live="polite">
         {result ? (
-          <article className={`roulette-result-card ${getRankBorderClass(result.rank)}`}>
-            <div className="roulette-result-rank">
-              <span>WINNING RANK</span>
-              <strong>#{resultNumber}</strong>
-              <small>{getTier(result.rank)}</small>
-            </div>
-
-            <RankingThumbnail item={result} />
-
-            <div className="roulette-result-copy">
-              <p className="section-kicker">SELECTED MAP</p>
-              <h2>{result.title}</h2>
-              <p>
-                by <strong>{result.creator || "Unknown"}</strong>
-                <span aria-hidden="true"> · </span>
-                verified by <strong>{result.verifier || "Unknown"}</strong>
-              </p>
-
-              <div className="badge-row">
-                <RatingBadge rating={result.rating} compact />
-                <LengthBadge length={result.length} compact />
-                <span className="neutral-badge">ID {result.levelId || "-"}</span>
-              </div>
-            </div>
-
-            <a
-              className="roulette-detail-link"
-              href={`#/maps/${getMapKey(result)}`}
-            >
-              상세 보기 <ArrowIcon />
-            </a>
-          </article>
+          <RouletteMapCard item={result} />
+        ) : livePreviewActive ? (
+          livePreviewMap ? (
+            <RouletteMapCard item={livePreviewMap} preview />
+          ) : (
+            <div
+              className="roulette-live-empty"
+              aria-label={`현재 ${livePreviewRankText}위에 등록된 맵이 없습니다.`}
+            />
+          )
         ) : (
           <div className="roulette-result-placeholder">
             <span>RESULT</span>
