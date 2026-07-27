@@ -31,34 +31,32 @@ function useHashRoute() {
 const NAV_ITEMS = [
   { key: "home", label: "홈", href: "#/" },
   { key: "list", label: "리스트", href: "#/list" },
+  { key: "roulette", label: "룰렛", href: "#/roulette" },
 ];
 
 function getActiveNavKey(route) {
-  return route === "/list" || route.startsWith("/maps/") ? "list" : "home";
+  if (route === "/roulette") return "roulette";
+  if (route === "/list" || route.startsWith("/maps/")) return "list";
+  return "home";
 }
 
 function NavTabs({ route }) {
   const value = getActiveNavKey(route);
   const containerRef = React.useRef(null);
-  const labelRefs = React.useRef(new Map());
+  const linkRefs = React.useRef(new Map());
   const [indicator, setIndicator] = React.useState({ x: 0, width: 0, ready: false });
 
   const updateIndicator = React.useCallback(() => {
-    const container = containerRef.current;
-    const activeLabel = labelRefs.current.get(value);
+    const activeLink = linkRefs.current.get(value);
 
-    if (!container || !activeLabel) return;
+    if (!containerRef.current || !activeLink) return;
 
     setIndicator({
-      x: activeLabel.offsetLeft,
-      width: activeLabel.offsetWidth,
+      x: activeLink.offsetLeft,
+      width: activeLink.offsetWidth,
       ready: true,
     });
   }, [value]);
-
-  const toggleRoute = () => {
-    window.location.hash = value === "home" ? "#/list" : "#/";
-  };
 
   React.useLayoutEffect(() => {
     updateIndicator();
@@ -70,7 +68,7 @@ function NavTabs({ route }) {
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(updateIndicator);
       resizeObserver.observe(container);
-      labelRefs.current.forEach((label) => resizeObserver.observe(label));
+      linkRefs.current.forEach((link) => resizeObserver.observe(link));
     }
 
     window.addEventListener("resize", updateIndicator);
@@ -82,32 +80,32 @@ function NavTabs({ route }) {
   }, [updateIndicator]);
 
   return (
-    <button
+    <nav
       ref={containerRef}
-      className={`nav nav-toggle ${indicator.ready ? "indicator-ready" : ""}`}
-      type="button"
-      onClick={toggleRoute}
-      aria-label={value === "home" ? "리스트로 이동" : "홈으로 이동"}
+      className={`nav nav-links ${indicator.ready ? "indicator-ready" : ""}`}
+      aria-label="주요 페이지"
       style={{
         "--nav-indicator-x": `${indicator.x}px`,
         "--nav-indicator-width": `${indicator.width}px`,
       }}
     >
       <span className="nav-indicator" aria-hidden="true" />
+
       {NAV_ITEMS.map((item) => (
-        <span
+        <a
           key={item.key}
           ref={(element) => {
-            if (element) labelRefs.current.set(item.key, element);
-            else labelRefs.current.delete(item.key);
+            if (element) linkRefs.current.set(item.key, element);
+            else linkRefs.current.delete(item.key);
           }}
-          className={`nav-label ${value === item.key ? "active" : ""}`}
-          aria-hidden="true"
+          className={`nav-link ${value === item.key ? "active" : ""}`}
+          href={item.href}
+          aria-current={value === item.key ? "page" : undefined}
         >
           {item.label}
-        </span>
+        </a>
       ))}
-    </button>
+    </nav>
   );
 }
 
@@ -617,6 +615,327 @@ function RatingRangeFilter({ value, onChange, resultCount, totalCount }) {
   );
 }
 
+const ROULETTE_PHASE_LABELS = {
+  idle: "레버를 당겨 랜덤 맵을 추첨하세요.",
+  hundreds: "백의 자리를 결정하는 중",
+  tens: "십의 자리를 결정하는 중",
+  ones: "일의 자리를 천천히 결정하는 중",
+  complete: "추첨이 완료되었습니다.",
+};
+
+function getRandomIndex(length) {
+  if (length <= 1) return 0;
+
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    return values[0] % length;
+  }
+
+  return Math.floor(Math.random() * length);
+}
+
+function getRouletteCandidates(maps) {
+  return maps.filter((item) => {
+    const rank = Number(item.rank);
+    return Number.isInteger(rank) && rank >= 1 && rank <= 999;
+  });
+}
+
+function waitForRoulette(milliseconds, timerSet, token, tokenRef) {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      timerSet.current.delete(timer);
+      resolve(token === tokenRef.current);
+    }, milliseconds);
+
+    timerSet.current.add(timer);
+  });
+}
+
+function RoulettePage({ maps }) {
+  const candidates = useMemo(() => getRouletteCandidates(maps), [maps]);
+  const [digits, setDigits] = React.useState(["0", "0", "0"]);
+  const [stoppedReels, setStoppedReels] = React.useState([false, false, false]);
+  const [phase, setPhase] = React.useState("idle");
+  const [spinning, setSpinning] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+
+  const timeoutIds = React.useRef(new Set());
+  const intervalIds = React.useRef(new Set());
+  const spinToken = React.useRef(0);
+
+  const clearAnimations = React.useCallback(() => {
+    timeoutIds.current.forEach((timer) => window.clearTimeout(timer));
+    intervalIds.current.forEach((interval) => window.clearInterval(interval));
+    timeoutIds.current.clear();
+    intervalIds.current.clear();
+  }, []);
+
+  React.useEffect(
+    () => () => {
+      spinToken.current += 1;
+      clearAnimations();
+    },
+    [clearAnimations],
+  );
+
+  const setDigit = React.useCallback((index, value) => {
+    setDigits((current) => {
+      const next = [...current];
+      next[index] = String(value);
+      return next;
+    });
+  }, []);
+
+  const startReel = React.useCallback(
+    (index, speed, token) => {
+      const interval = window.setInterval(() => {
+        if (token !== spinToken.current) return;
+
+        setDigits((current) => {
+          const next = [...current];
+          next[index] = String((Number(current[index]) + 1) % 10);
+          return next;
+        });
+      }, speed);
+
+      intervalIds.current.add(interval);
+      return interval;
+    },
+    [],
+  );
+
+  const stopReelInterval = React.useCallback((interval) => {
+    window.clearInterval(interval);
+    intervalIds.current.delete(interval);
+  }, []);
+
+  const settleReel = React.useCallback(
+    async (index, targetDigit, delays, token) => {
+      for (let step = 0; step < delays.length; step += 1) {
+        const stillCurrent = await waitForRoulette(
+          delays[step],
+          timeoutIds,
+          token,
+          spinToken,
+        );
+
+        if (!stillCurrent) return false;
+
+        if (step === delays.length - 1) {
+          setDigit(index, targetDigit);
+        } else {
+          setDigits((current) => {
+            const next = [...current];
+            next[index] = String((Number(current[index]) + 1) % 10);
+            return next;
+          });
+        }
+      }
+
+      setStoppedReels((current) => {
+        const next = [...current];
+        next[index] = true;
+        return next;
+      });
+
+      return true;
+    },
+    [setDigit],
+  );
+
+  const spinRoulette = React.useCallback(async () => {
+    if (spinning || candidates.length === 0) return;
+
+    clearAnimations();
+    const token = spinToken.current + 1;
+    spinToken.current = token;
+
+    const selectedMap = candidates[getRandomIndex(candidates.length)];
+    const targetDigits = String(selectedMap.rank).padStart(3, "0").slice(-3).split("");
+
+    setSpinning(true);
+    setResult(null);
+    setPhase("hundreds");
+    setStoppedReels([false, false, false]);
+
+    const reelIntervals = [
+      startReel(0, 48, token),
+      startReel(1, 54, token),
+      startReel(2, 59, token),
+    ];
+
+    let stillCurrent = await waitForRoulette(820, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
+
+    stopReelInterval(reelIntervals[0]);
+    stillCurrent = await settleReel(0, targetDigits[0], [40, 58, 82, 116], token);
+    if (!stillCurrent) return;
+
+    setPhase("tens");
+    stillCurrent = await waitForRoulette(260, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
+
+    stopReelInterval(reelIntervals[1]);
+    stillCurrent = await settleReel(1, targetDigits[1], [52, 76, 106, 148, 196], token);
+    if (!stillCurrent) return;
+
+    setPhase("ones");
+    stillCurrent = await waitForRoulette(260, timeoutIds, token, spinToken);
+    if (!stillCurrent) return;
+
+    stopReelInterval(reelIntervals[2]);
+
+    // The final reel intentionally slows down dramatically before landing.
+    stillCurrent = await settleReel(
+      2,
+      targetDigits[2],
+      [90, 120, 160, 210, 275, 350, 445, 560, 700, 880],
+      token,
+    );
+    if (!stillCurrent) return;
+
+    setResult(selectedMap);
+    setPhase("complete");
+    setSpinning(false);
+  }, [
+    candidates,
+    clearAnimations,
+    settleReel,
+    spinning,
+    startReel,
+    stopReelInterval,
+  ]);
+
+  const phaseLabel = ROULETTE_PHASE_LABELS[phase];
+  const resultNumber = result ? String(result.rank).padStart(3, "0") : null;
+
+  return (
+    <section className="roulette-page">
+      <header className="roulette-heading">
+        <div>
+          <p className="section-kicker">DEMON ROULETTE</p>
+          <h1>데몬 리스트 슬롯머신</h1>
+          <p>등록된 맵 가운데 하나를 무작위로 추첨합니다.</p>
+        </div>
+        <span className="roulette-map-count">{candidates.length} MAPS</span>
+      </header>
+
+      <article
+        className={`slot-machine ${spinning ? "is-spinning" : ""} ${
+          phase === "ones" ? "is-final-reel" : ""
+        }`}
+      >
+        <div className="slot-machine-marquee">
+          <span>RANDOM DEMON SELECTOR</span>
+          <div aria-hidden="true">
+            {Array.from({ length: 9 }, (_, index) => (
+              <i key={index} />
+            ))}
+          </div>
+        </div>
+
+        <div className="slot-machine-body">
+          <div className="slot-machine-display">
+            <div className="slot-machine-status" aria-live="polite">
+              <span className={`slot-status-light ${spinning ? "active" : ""}`} />
+              <strong>{phaseLabel}</strong>
+            </div>
+
+            <div className="slot-reels" aria-label={`현재 숫자 ${digits.join("")}`}>
+              {digits.map((digit, index) => (
+                <div
+                  className={`slot-reel ${
+                    spinning && !stoppedReels[index] ? "is-rolling" : ""
+                  } ${stoppedReels[index] ? "is-stopped" : ""}`}
+                  key={index}
+                >
+                  <span className="slot-reel-place">
+                    {index === 0 ? "100" : index === 1 ? "10" : "1"}
+                  </span>
+                  <strong>{digit}</strong>
+                  <span className="slot-reel-window" aria-hidden="true" />
+                </div>
+              ))}
+            </div>
+
+            <div className="slot-machine-number-line">
+              <span>RANK</span>
+              <strong>{digits.join("")}</strong>
+            </div>
+          </div>
+
+          <button
+            className={`slot-lever ${spinning ? "is-pulled" : ""}`}
+            type="button"
+            onClick={spinRoulette}
+            disabled={spinning || candidates.length === 0}
+            aria-label={spinning ? "슬롯머신 추첨 중" : "레버를 당겨 맵 추첨"}
+          >
+            <span className="slot-lever-rail" aria-hidden="true">
+              <span className="slot-lever-arm">
+                <span className="slot-lever-knob" />
+              </span>
+            </span>
+            <strong>{spinning ? "SPINNING" : "PULL"}</strong>
+            <small>{spinning ? "추첨 중" : "레버 클릭"}</small>
+          </button>
+        </div>
+
+        <div className="slot-machine-footer">
+          <span>백의 자리</span>
+          <span>십의 자리</span>
+          <span className="slow-label">일의 자리 · SLOW STOP</span>
+        </div>
+      </article>
+
+      <section className="roulette-result-section" aria-live="polite">
+        {result ? (
+          <article className={`roulette-result-card ${getRankBorderClass(result.rank)}`}>
+            <div className="roulette-result-rank">
+              <span>WINNING RANK</span>
+              <strong>#{resultNumber}</strong>
+              <small>{getTier(result.rank)}</small>
+            </div>
+
+            <RankingThumbnail item={result} />
+
+            <div className="roulette-result-copy">
+              <p className="section-kicker">SELECTED MAP</p>
+              <h2>{result.title}</h2>
+              <p>
+                by <strong>{result.creator || "Unknown"}</strong>
+                <span aria-hidden="true"> · </span>
+                verified by <strong>{result.verifier || "Unknown"}</strong>
+              </p>
+
+              <div className="badge-row">
+                <RatingBadge rating={result.rating} compact />
+                <LengthBadge length={result.length} compact />
+                <span className="neutral-badge">ID {result.levelId || "-"}</span>
+              </div>
+            </div>
+
+            <a
+              className="roulette-detail-link"
+              href={`#/maps/${getMapKey(result)}`}
+            >
+              상세 보기 <ArrowIcon />
+            </a>
+          </article>
+        ) : (
+          <div className="roulette-result-placeholder">
+            <span>RESULT</span>
+            <h2>아직 추첨된 맵이 없습니다.</h2>
+            <p>오른쪽 레버를 클릭하면 슬롯이 돌아갑니다.</p>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
 function ListPage({ maps, initialQuery = "" }) {
   const [query, setQuery] = React.useState(initialQuery);
   const [filter, setFilter] = React.useState("all");
@@ -983,6 +1302,7 @@ function App() {
   else if (error) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
   else if (route === "/") page = <Home maps={maps} />;
   else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
+  else if (route === "/roulette") page = <RoulettePage maps={maps} />;
   else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} />;
   else page = <Home maps={maps} />;
 
