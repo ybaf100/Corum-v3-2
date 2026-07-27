@@ -660,6 +660,9 @@ function RoulettePage({ maps }) {
   const [phase, setPhase] = React.useState("idle");
   const [spinning, setSpinning] = React.useState(false);
   const [result, setResult] = React.useState(null);
+  const [targetDigits, setTargetDigits] = React.useState(null);
+  const [settlingReel, setSettlingReel] = React.useState(-1);
+  const [settleProgress, setSettleProgress] = React.useState(0);
 
   const timeoutIds = React.useRef(new Set());
   const intervalIds = React.useRef(new Set());
@@ -713,7 +716,12 @@ function RoulettePage({ maps }) {
 
   const settleReel = React.useCallback(
     async (index, targetDigit, delays, token) => {
+      setSettlingReel(index);
+      setSettleProgress(0);
+
       for (let step = 0; step < delays.length; step += 1) {
+        setSettleProgress(step / Math.max(1, delays.length - 1));
+
         const stillCurrent = await waitForRoulette(
           delays[step],
           timeoutIds,
@@ -739,6 +747,8 @@ function RoulettePage({ maps }) {
         next[index] = true;
         return next;
       });
+      setSettlingReel(-1);
+      setSettleProgress(0);
 
       return true;
     },
@@ -753,10 +763,13 @@ function RoulettePage({ maps }) {
     spinToken.current = token;
 
     const selectedMap = candidates[getRandomIndex(candidates.length)];
-    const targetDigits = String(selectedMap.rank).padStart(3, "0").slice(-3).split("");
+    const nextTargetDigits = String(selectedMap.rank).padStart(3, "0").slice(-3).split("");
 
     setSpinning(true);
     setResult(null);
+    setTargetDigits(nextTargetDigits);
+    setSettlingReel(-1);
+    setSettleProgress(0);
     setPhase("hundreds");
     setStoppedReels([false, false, false]);
 
@@ -770,7 +783,7 @@ function RoulettePage({ maps }) {
     if (!stillCurrent) return;
 
     stopReelInterval(reelIntervals[0]);
-    stillCurrent = await settleReel(0, targetDigits[0], [40, 58, 82, 116], token);
+    stillCurrent = await settleReel(0, nextTargetDigits[0], [38, 50, 68, 94, 132], token);
     if (!stillCurrent) return;
 
     setPhase("tens");
@@ -778,7 +791,7 @@ function RoulettePage({ maps }) {
     if (!stillCurrent) return;
 
     stopReelInterval(reelIntervals[1]);
-    stillCurrent = await settleReel(1, targetDigits[1], [52, 76, 106, 148, 196], token);
+    stillCurrent = await settleReel(1, nextTargetDigits[1], [46, 62, 84, 116, 158, 220], token);
     if (!stillCurrent) return;
 
     setPhase("ones");
@@ -790,8 +803,8 @@ function RoulettePage({ maps }) {
     // The final reel intentionally slows down dramatically before landing.
     stillCurrent = await settleReel(
       2,
-      targetDigits[2],
-      [90, 120, 160, 210, 275, 350, 445, 560, 700, 880],
+      nextTargetDigits[2],
+      [72, 88, 108, 136, 174, 224, 286, 364, 462, 582, 720, 890],
       token,
     );
     if (!stillCurrent) return;
@@ -810,6 +823,10 @@ function RoulettePage({ maps }) {
 
   const phaseLabel = ROULETTE_PHASE_LABELS[phase];
   const resultNumber = result ? String(result.rank).padStart(3, "0") : null;
+  const singleDigitFocus =
+    phase === "ones" &&
+    targetDigits?.[0] === "0" &&
+    targetDigits?.[1] === "0";
 
   return (
     <section className="roulette-page">
@@ -825,7 +842,7 @@ function RoulettePage({ maps }) {
       <article
         className={`slot-machine ${spinning ? "is-spinning" : ""} ${
           phase === "ones" ? "is-final-reel" : ""
-        }`}
+        } ${singleDigitFocus ? "is-single-digit-focus" : ""}`}
       >
         <div className="slot-machine-marquee">
           <span>RANDOM DEMON SELECTOR</span>
@@ -844,20 +861,40 @@ function RoulettePage({ maps }) {
             </div>
 
             <div className="slot-reels" aria-label={`현재 숫자 ${digits.join("")}`}>
-              {digits.map((digit, index) => (
-                <div
-                  className={`slot-reel ${
-                    spinning && !stoppedReels[index] ? "is-rolling" : ""
-                  } ${stoppedReels[index] ? "is-stopped" : ""}`}
-                  key={index}
-                >
-                  <span className="slot-reel-place">
-                    {index === 0 ? "100" : index === 1 ? "10" : "1"}
-                  </span>
-                  <strong>{digit}</strong>
-                  <span className="slot-reel-window" aria-hidden="true" />
-                </div>
-              ))}
+              {digits.map((digit, index) => {
+                const numericDigit = Number(digit);
+                const previousDigit = (numericDigit + 9) % 10;
+                const nextDigit = (numericDigit + 1) % 10;
+                const isSettling = settlingReel === index;
+
+                return (
+                  <div
+                    className={`slot-reel ${
+                      spinning && !stoppedReels[index] ? "is-rolling" : ""
+                    } ${isSettling ? "is-decelerating" : ""} ${
+                      stoppedReels[index] ? "is-stopped" : ""
+                    }`}
+                    key={index}
+                    style={{
+                      "--reel-index": index,
+                      "--settle-progress": isSettling ? settleProgress : 0,
+                    }}
+                  >
+                    <span className="slot-reel-place">
+                      {index === 0 ? "100" : index === 1 ? "10" : "1"}
+                    </span>
+
+                    <div className="slot-reel-strip" aria-hidden="true">
+                      <span>{previousDigit}</span>
+                      <strong>{digit}</strong>
+                      <span>{nextDigit}</span>
+                    </div>
+
+                    <span className="slot-reel-speed-lines" aria-hidden="true" />
+                    <span className="slot-reel-window" aria-hidden="true" />
+                  </div>
+                );
+              })}
             </div>
 
             <div className="slot-machine-number-line">
@@ -883,11 +920,6 @@ function RoulettePage({ maps }) {
           </button>
         </div>
 
-        <div className="slot-machine-footer">
-          <span>백의 자리</span>
-          <span>십의 자리</span>
-          <span className="slow-label">일의 자리 · SLOW STOP</span>
-        </div>
       </article>
 
       <section className="roulette-result-section" aria-live="polite">
