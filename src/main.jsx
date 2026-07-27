@@ -653,172 +653,265 @@ function waitForRoulette(milliseconds, timerSet, token, tokenRef) {
   });
 }
 
+const SLOT_REEL_DIGITS = Array.from({ length: 180 }, (_, index) => index % 10);
+
+function getNormalizedReelOffset(digit) {
+  return 10 + Number(digit || 0);
+}
+
+function getTargetReelOffset(startOffset, targetDigit, cycles) {
+  const roundedStart = Math.round(startOffset);
+  const currentDigit = ((roundedStart % 10) + 10) % 10;
+  const target = Number(targetDigit);
+  const forwardSteps = (target - currentDigit + 10) % 10;
+
+  return roundedStart + cycles * 10 + forwardSteps;
+}
+
+function getReelTransform(offset, reelHeight) {
+  return `translate3d(0, ${-(offset * reelHeight)}px, 0)`;
+}
+
+function animateSlotReel({
+  track,
+  startOffset,
+  endOffset,
+  duration,
+  reelHeight,
+}) {
+  if (!track) return null;
+
+  const totalDistance = endOffset - startOffset;
+  const launchOffset = startOffset + totalDistance * 0.12;
+  const cruiseOffset = startOffset + totalDistance * 0.68;
+  const brakingDistance = Math.min(9.4, Math.max(4.2, totalDistance * 0.14));
+  const brakingOffset = Math.max(cruiseOffset + 1, endOffset - brakingDistance);
+
+  const keyframes = [
+    {
+      transform: getReelTransform(startOffset, reelHeight),
+      offset: 0,
+      easing: "cubic-bezier(.34, 0, .48, 1)",
+    },
+    {
+      transform: getReelTransform(launchOffset, reelHeight),
+      offset: 0.1,
+      easing: "linear",
+    },
+    {
+      transform: getReelTransform(cruiseOffset, reelHeight),
+      offset: 0.64,
+      easing: "cubic-bezier(.08, .62, .15, 1)",
+    },
+    {
+      transform: getReelTransform(brakingOffset, reelHeight),
+      offset: 0.9,
+      easing: "cubic-bezier(.12, .72, .2, 1)",
+    },
+    {
+      transform: getReelTransform(endOffset, reelHeight),
+      offset: 1,
+    },
+  ];
+
+  if (typeof track.animate !== "function") {
+    track.style.transform = getReelTransform(endOffset, reelHeight);
+    return {
+      finished: new Promise((resolve) => window.setTimeout(resolve, duration)),
+      cancel() {},
+    };
+  }
+
+  return track.animate(keyframes, {
+    duration,
+    iterations: 1,
+    fill: "forwards",
+    easing: "linear",
+  });
+}
+
 function RoulettePage({ maps }) {
   const candidates = useMemo(() => getRouletteCandidates(maps), [maps]);
   const [digits, setDigits] = React.useState(["0", "0", "0"]);
-  const [stoppedReels, setStoppedReels] = React.useState([false, false, false]);
+  const [stoppedReels, setStoppedReels] = React.useState([true, true, true]);
   const [phase, setPhase] = React.useState("idle");
   const [spinning, setSpinning] = React.useState(false);
   const [result, setResult] = React.useState(null);
   const [targetDigits, setTargetDigits] = React.useState(null);
-  const [settlingReel, setSettlingReel] = React.useState(-1);
-  const [settleProgress, setSettleProgress] = React.useState(0);
 
-  const timeoutIds = React.useRef(new Set());
-  const intervalIds = React.useRef(new Set());
+  const reelViewportRefs = React.useRef([]);
+  const reelTrackRefs = React.useRef([]);
+  const reelOffsets = React.useRef([10, 10, 10]);
+  const reelAnimations = React.useRef([null, null, null]);
   const spinToken = React.useRef(0);
 
-  const clearAnimations = React.useCallback(() => {
-    timeoutIds.current.forEach((timer) => window.clearTimeout(timer));
-    intervalIds.current.forEach((interval) => window.clearInterval(interval));
-    timeoutIds.current.clear();
-    intervalIds.current.clear();
+  const cancelReelAnimations = React.useCallback(() => {
+    reelAnimations.current.forEach((animation) => {
+      try {
+        animation?.cancel();
+      } catch {
+        // Animation may already be finished.
+      }
+    });
+    reelAnimations.current = [null, null, null];
   }, []);
+
+  const alignTracksToDigits = React.useCallback(() => {
+    if (spinning) return;
+
+    reelTrackRefs.current.forEach((track, index) => {
+      const viewport = reelViewportRefs.current[index];
+      if (!track || !viewport) return;
+
+      const offset = getNormalizedReelOffset(digits[index]);
+      reelOffsets.current[index] = offset;
+      track.style.transform = getReelTransform(offset, viewport.clientHeight);
+    });
+  }, [digits, spinning]);
+
+  React.useLayoutEffect(() => {
+    alignTracksToDigits();
+
+    const handleResize = () => alignTracksToDigits();
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, [alignTracksToDigits]);
 
   React.useEffect(
     () => () => {
       spinToken.current += 1;
-      clearAnimations();
+      cancelReelAnimations();
     },
-    [clearAnimations],
+    [cancelReelAnimations],
   );
 
-  const setDigit = React.useCallback((index, value) => {
+  const settleDisplayedDigit = React.useCallback((index, targetDigit) => {
     setDigits((current) => {
       const next = [...current];
-      next[index] = String(value);
+      next[index] = String(targetDigit);
+      return next;
+    });
+
+    setStoppedReels((current) => {
+      const next = [...current];
+      next[index] = true;
       return next;
     });
   }, []);
 
-  const startReel = React.useCallback(
-    (index, speed, token) => {
-      const interval = window.setInterval(() => {
-        if (token !== spinToken.current) return;
-
-        setDigits((current) => {
-          const next = [...current];
-          next[index] = String((Number(current[index]) + 1) % 10);
-          return next;
-        });
-      }, speed);
-
-      intervalIds.current.add(interval);
-      return interval;
-    },
-    [],
-  );
-
-  const stopReelInterval = React.useCallback((interval) => {
-    window.clearInterval(interval);
-    intervalIds.current.delete(interval);
-  }, []);
-
-  const settleReel = React.useCallback(
-    async (index, targetDigit, delays, token) => {
-      setSettlingReel(index);
-      setSettleProgress(0);
-
-      for (let step = 0; step < delays.length; step += 1) {
-        setSettleProgress(step / Math.max(1, delays.length - 1));
-
-        const stillCurrent = await waitForRoulette(
-          delays[step],
-          timeoutIds,
-          token,
-          spinToken,
-        );
-
-        if (!stillCurrent) return false;
-
-        if (step === delays.length - 1) {
-          setDigit(index, targetDigit);
-        } else {
-          setDigits((current) => {
-            const next = [...current];
-            next[index] = String((Number(current[index]) + 1) % 10);
-            return next;
-          });
-        }
-      }
-
-      setStoppedReels((current) => {
-        const next = [...current];
-        next[index] = true;
-        return next;
-      });
-      setSettlingReel(-1);
-      setSettleProgress(0);
-
-      return true;
-    },
-    [setDigit],
-  );
-
   const spinRoulette = React.useCallback(async () => {
     if (spinning || candidates.length === 0) return;
 
-    clearAnimations();
+    cancelReelAnimations();
+
     const token = spinToken.current + 1;
     spinToken.current = token;
 
     const selectedMap = candidates[getRandomIndex(candidates.length)];
-    const nextTargetDigits = String(selectedMap.rank).padStart(3, "0").slice(-3).split("");
+    const nextTargetDigits = String(selectedMap.rank)
+      .padStart(3, "0")
+      .slice(-3)
+      .split("");
 
     setSpinning(true);
     setResult(null);
     setTargetDigits(nextTargetDigits);
-    setSettlingReel(-1);
-    setSettleProgress(0);
     setPhase("hundreds");
     setStoppedReels([false, false, false]);
 
-    const reelIntervals = [
-      startReel(0, 48, token),
-      startReel(1, 54, token),
-      startReel(2, 59, token),
-    ];
+    const durations = [2350, 3550, 6350];
+    const cycles = [5, 8, 14];
 
-    let stillCurrent = await waitForRoulette(820, timeoutIds, token, spinToken);
-    if (!stillCurrent) return;
+    const animations = reelTrackRefs.current.map((track, index) => {
+      const viewport = reelViewportRefs.current[index];
+      if (!track || !viewport) return null;
 
-    stopReelInterval(reelIntervals[0]);
-    stillCurrent = await settleReel(0, nextTargetDigits[0], [38, 50, 68, 94, 132], token);
-    if (!stillCurrent) return;
+      const startOffset = getNormalizedReelOffset(digits[index]);
+      const endOffset = getTargetReelOffset(
+        startOffset,
+        nextTargetDigits[index],
+        cycles[index],
+      );
 
-    setPhase("tens");
-    stillCurrent = await waitForRoulette(260, timeoutIds, token, spinToken);
-    if (!stillCurrent) return;
+      reelOffsets.current[index] = endOffset;
+      track.style.transform = getReelTransform(
+        startOffset,
+        viewport.clientHeight,
+      );
 
-    stopReelInterval(reelIntervals[1]);
-    stillCurrent = await settleReel(1, nextTargetDigits[1], [46, 62, 84, 116, 158, 220], token);
-    if (!stillCurrent) return;
+      return animateSlotReel({
+        track,
+        startOffset,
+        endOffset,
+        duration: durations[index],
+        reelHeight: viewport.clientHeight,
+      });
+    });
 
-    setPhase("ones");
-    stillCurrent = await waitForRoulette(260, timeoutIds, token, spinToken);
-    if (!stillCurrent) return;
+    reelAnimations.current = animations;
 
-    stopReelInterval(reelIntervals[2]);
+    try {
+      await animations[0]?.finished;
+      if (token !== spinToken.current) return;
 
-    // The final reel intentionally slows down dramatically before landing.
-    stillCurrent = await settleReel(
-      2,
-      nextTargetDigits[2],
-      [72, 88, 108, 136, 174, 224, 286, 364, 462, 582, 720, 890],
-      token,
-    );
-    if (!stillCurrent) return;
+      const firstTrack = reelTrackRefs.current[0];
+      const firstViewport = reelViewportRefs.current[0];
+      if (firstTrack && firstViewport) {
+        firstTrack.style.transform = getReelTransform(
+          reelOffsets.current[0],
+          firstViewport.clientHeight,
+        );
+      }
+      animations[0]?.cancel();
+      settleDisplayedDigit(0, nextTargetDigits[0]);
+      setPhase("tens");
 
-    setResult(selectedMap);
-    setPhase("complete");
-    setSpinning(false);
+      await animations[1]?.finished;
+      if (token !== spinToken.current) return;
+
+      const secondTrack = reelTrackRefs.current[1];
+      const secondViewport = reelViewportRefs.current[1];
+      if (secondTrack && secondViewport) {
+        secondTrack.style.transform = getReelTransform(
+          reelOffsets.current[1],
+          secondViewport.clientHeight,
+        );
+      }
+      animations[1]?.cancel();
+      settleDisplayedDigit(1, nextTargetDigits[1]);
+      setPhase("ones");
+
+      await animations[2]?.finished;
+      if (token !== spinToken.current) return;
+
+      const thirdTrack = reelTrackRefs.current[2];
+      const thirdViewport = reelViewportRefs.current[2];
+      if (thirdTrack && thirdViewport) {
+        thirdTrack.style.transform = getReelTransform(
+          reelOffsets.current[2],
+          thirdViewport.clientHeight,
+        );
+      }
+      animations[2]?.cancel();
+      settleDisplayedDigit(2, nextTargetDigits[2]);
+
+      setResult(selectedMap);
+      setPhase("complete");
+      setSpinning(false);
+      reelAnimations.current = [null, null, null];
+    } catch {
+      if (token === spinToken.current) {
+        setSpinning(false);
+        setPhase("idle");
+      }
+    }
   }, [
     candidates,
-    clearAnimations,
-    settleReel,
+    cancelReelAnimations,
+    digits,
+    settleDisplayedDigit,
     spinning,
-    startReel,
-    stopReelInterval,
   ]);
 
   const phaseLabel = ROULETTE_PHASE_LABELS[phase];
@@ -828,8 +921,18 @@ function RoulettePage({ maps }) {
     targetDigits?.[0] === "0" &&
     targetDigits?.[1] === "0";
 
+  const visibleRank = digits
+    .map((digit, index) => (stoppedReels[index] ? digit : "—"))
+    .join("");
+
   return (
-    <section className="roulette-page">
+    <section
+      className={`roulette-page ${singleDigitFocus ? "is-focus-mode" : ""}`}
+    >
+      {singleDigitFocus ? (
+        <div className="roulette-focus-overlay" aria-hidden="true" />
+      ) : null}
+
       <header className="roulette-heading">
         <div>
           <p className="section-kicker">DEMON ROULETTE</p>
@@ -860,46 +963,52 @@ function RoulettePage({ maps }) {
               <strong>{phaseLabel}</strong>
             </div>
 
-            <div className="slot-reels" aria-label={`현재 숫자 ${digits.join("")}`}>
-              {digits.map((digit, index) => {
-                const numericDigit = Number(digit);
-                const previousDigit = (numericDigit + 9) % 10;
-                const nextDigit = (numericDigit + 1) % 10;
-                const isSettling = settlingReel === index;
-
-                return (
+            <div className="slot-reels" aria-label={`현재 순위 ${visibleRank}`}>
+              {[0, 1, 2].map((index) => (
+                <div
+                  className={`slot-reel ${
+                    spinning && !stoppedReels[index] ? "is-rolling" : ""
+                  } ${
+                    phase === "hundreds" && index === 0
+                      ? "is-braking"
+                      : phase === "tens" && index === 1
+                        ? "is-braking"
+                        : phase === "ones" && index === 2
+                          ? "is-braking"
+                          : ""
+                  } ${stoppedReels[index] ? "is-stopped" : ""}`}
+                  key={index}
+                  ref={(node) => {
+                    reelViewportRefs.current[index] = node;
+                  }}
+                  style={{ "--reel-index": index }}
+                >
                   <div
-                    className={`slot-reel ${
-                      spinning && !stoppedReels[index] ? "is-rolling" : ""
-                    } ${isSettling ? "is-decelerating" : ""} ${
-                      stoppedReels[index] ? "is-stopped" : ""
-                    }`}
-                    key={index}
-                    style={{
-                      "--reel-index": index,
-                      "--settle-progress": isSettling ? settleProgress : 0,
+                    className="slot-reel-track"
+                    ref={(node) => {
+                      reelTrackRefs.current[index] = node;
                     }}
+                    style={{
+                      "--reel-item-count": SLOT_REEL_DIGITS.length,
+                      height: `${SLOT_REEL_DIGITS.length * 100}%`,
+                      gridTemplateRows: `repeat(${SLOT_REEL_DIGITS.length}, 1fr)`,
+                    }}
+                    aria-hidden="true"
                   >
-                    <span className="slot-reel-place">
-                      {index === 0 ? "100" : index === 1 ? "10" : "1"}
-                    </span>
-
-                    <div className="slot-reel-strip" aria-hidden="true">
-                      <span>{previousDigit}</span>
-                      <strong>{digit}</strong>
-                      <span>{nextDigit}</span>
-                    </div>
-
-                    <span className="slot-reel-speed-lines" aria-hidden="true" />
-                    <span className="slot-reel-window" aria-hidden="true" />
+                    {SLOT_REEL_DIGITS.map((digit, digitIndex) => (
+                      <span key={`${index}-${digitIndex}`}>{digit}</span>
+                    ))}
                   </div>
-                );
-              })}
+
+                  <span className="slot-reel-speed-lines" aria-hidden="true" />
+                  <span className="slot-reel-window" aria-hidden="true" />
+                </div>
+              ))}
             </div>
 
             <div className="slot-machine-number-line">
               <span>RANK</span>
-              <strong>{digits.join("")}</strong>
+              <strong>{visibleRank}</strong>
             </div>
           </div>
 
@@ -919,7 +1028,6 @@ function RoulettePage({ maps }) {
             <small>{spinning ? "추첨 중" : "레버 클릭"}</small>
           </button>
         </div>
-
       </article>
 
       <section className="roulette-result-section" aria-live="polite">
@@ -967,6 +1075,7 @@ function RoulettePage({ maps }) {
     </section>
   );
 }
+
 
 function ListPage({ maps, initialQuery = "" }) {
   const [query, setQuery] = React.useState(initialQuery);
