@@ -2,6 +2,7 @@ import React, { useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { SITE_TITLE, SITE_VERSION } from "./config";
 import { useMaps } from "./useMaps";
+import { useRecords } from "./useRecords";
 import {
   getLengthBackgroundColor,
   getLengthTextColor,
@@ -1556,8 +1557,171 @@ function MapDetailPage({ maps, mapKey }) {
             <span>맵 코드</span>
             <strong className="mono">{item.levelId || "-"}</strong>
           </div>
+          <div className="map-detail-fact">
+            <span>최소 등록 기록</span>
+            <strong>{item.minimumRecord}%</strong>
+          </div>
         </div>
       </article>
+
+      <RecordLeaderboard levelId={item.levelId} minimumRecord={item.minimumRecord} />
+    </section>
+  );
+}
+
+function getRecordStatusLabel(status) {
+  if (status === "verified") return "검증됨";
+  if (status === "rejected") return "반려됨";
+  return "미검증";
+}
+
+function getSafeProofUrl(value) {
+  const url = String(value || "").trim();
+  return /^https?:\/\//i.test(url) ? url : "";
+}
+
+function formatRecordDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatPlayTime(milliseconds) {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return "-";
+
+  const totalSeconds = Math.round(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}시간 ${minutes}분`;
+  if (minutes > 0) return `${minutes}분 ${seconds}초`;
+  return `${seconds}초`;
+}
+
+function RecordLeaderboard({ levelId, minimumRecord }) {
+  const { records, loading, error, reload } = useRecords(levelId);
+  const sortedRecords = useMemo(
+    () =>
+      [...records].sort((left, right) => {
+        const percentDifference = (right.percent ?? -1) - (left.percent ?? -1);
+        if (percentDifference !== 0) return percentDifference;
+
+        const rightTime = Date.parse(right.clearedAt) || 0;
+        const leftTime = Date.parse(left.clearedAt) || 0;
+        return rightTime - leftTime;
+      }),
+    [records],
+  );
+
+  return (
+    <section className="record-board" aria-labelledby="record-board-title">
+      <div className="record-board-heading">
+        <div>
+          <p className="section-kicker">CORUM RECORDS</p>
+          <h2 id="record-board-title">등재 기록</h2>
+          <p className="record-board-description">
+            등록 기준 <strong>{minimumRecord}%</strong> 이상 · 게임 내 모드에서 직접 전송된 최고 기록
+          </p>
+        </div>
+
+        <div className="record-board-heading-actions">
+          <span className="record-count">
+            {sortedRecords.length} RECORD{sortedRecords.length === 1 ? "" : "S"}
+          </span>
+          <button
+            type="button"
+            className="record-refresh"
+            onClick={reload}
+            disabled={loading}
+            aria-label="기록 새로고침"
+          >
+            <RefreshIcon />
+            <span>{loading ? "불러오는 중" : "새로고침"}</span>
+          </button>
+        </div>
+      </div>
+
+      {loading && sortedRecords.length === 0 ? (
+        <div className="record-state">
+          <span className="record-loader" aria-hidden="true" />
+          <p>등록된 기록을 불러오는 중입니다.</p>
+        </div>
+      ) : error ? (
+        <div className="record-state is-error">
+          <strong>기록을 불러오지 못했습니다.</strong>
+          <p>{error}</p>
+          <button type="button" onClick={reload}>다시 시도</button>
+        </div>
+      ) : sortedRecords.length === 0 ? (
+        <div className="record-state">
+          <strong>아직 등재된 기록이 없습니다.</strong>
+          <p>등록 기준을 달성한 뒤 게임 내 왼쪽 전송 버튼을 누르면 이곳에 표시됩니다.</p>
+        </div>
+      ) : (
+        <div className="record-list">
+          {sortedRecords.map((record, index) => {
+            const proofUrl = getSafeProofUrl(record.proofUrl);
+            const statusClass =
+              record.status === "verified"
+                ? "is-verified"
+                : record.status === "rejected"
+                  ? "is-rejected"
+                  : "is-unverified";
+
+            return (
+              <article
+                className="record-row"
+                key={record.recordId || `${record.levelId}-${record.player}-${record.clearedAt}-${index}`}
+              >
+                <span className="record-position">#{index + 1}</span>
+
+                <div className="record-player">
+                  <span className="record-avatar" aria-hidden="true">
+                    {(record.player || "?").charAt(0).toUpperCase()}
+                  </span>
+                  <div>
+                    <strong>{record.player}</strong>
+                    <span>{formatRecordDate(record.clearedAt)}</span>
+                  </div>
+                </div>
+
+                <div className="record-percent">
+                  <span>BEST</span>
+                  <strong>{record.percent ?? "-"}%</strong>
+                </div>
+
+                <div className="record-metrics">
+                  <p><span>ATTEMPTS</span><strong>{record.attempts ?? "-"}</strong></p>
+                  <p><span>JUMPS</span><strong>{record.jumps ?? "-"}</strong></p>
+                  <p><span>PLAY TIME</span><strong>{formatPlayTime(record.playTimeMs)}</strong></p>
+                  <p><span>PLATFORM</span><strong>{record.platform || "-"}</strong></p>
+                </div>
+
+                <div className="record-actions">
+                  <span className={`record-status ${statusClass}`}>
+                    {getRecordStatusLabel(record.status)}
+                  </span>
+                  {proofUrl && (
+                    <a href={proofUrl} target="_blank" rel="noreferrer">
+                      증거 보기 <ArrowIcon />
+                    </a>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

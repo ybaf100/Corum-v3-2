@@ -37,6 +37,14 @@ const HEADER_MAP = {
   "verifier": "verifier",
   "검증자": "verifier",
 
+  "최소 등록 가능 기록": "minimumRecord",
+  "최소등록가능기록": "minimumRecord",
+  "최소 등록 기록": "minimumRecord",
+  "최소등록기록": "minimumRecord",
+  "Minimum Record": "minimumRecord",
+  "Min Record": "minimumRecord",
+  "minimumRecord": "minimumRecord",
+
   "썸네일": "thumbnail",
   "thumbnail": "thumbnail",
   "Thumbnail": "thumbnail",
@@ -180,6 +188,7 @@ function normalizeMapItem(item) {
     levelId: String(item.levelId || "").trim(),
     creator: String(item.creator || "").trim(),
     verifier: String(item.verifier || "").trim(),
+    minimumRecord: normalizeMinimumRecord(item.minimumRecord),
     thumbnail: String(thumbnail).trim(),
   };
 }
@@ -193,6 +202,18 @@ function normalizeRating(value) {
 function toNumber(value) {
   const parsed = Number(String(value || "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function normalizeMinimumRecord(value) {
+  const text = String(value ?? "")
+    .trim()
+    .replace(/%$/, "")
+    .trim();
+  const parsed = Number(text);
+
+  return text && Number.isFinite(parsed) && parsed >= 1 && parsed <= 100
+    ? parsed
+    : 100;
 }
 
 export function sortByRank(items) {
@@ -227,6 +248,7 @@ export function includesSearch(item, query) {
     item.levelId,
     item.creator,
     item.verifier,
+    item.minimumRecord,
     item.thumbnail,
   ]
     .join(" ")
