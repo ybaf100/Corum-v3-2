@@ -3,6 +3,14 @@ import { createRoot } from "react-dom/client";
 import { SITE_TITLE, SITE_VERSION } from "./config";
 import { useMaps } from "./useMaps";
 import { useRecords } from "./useRecords";
+import { useScores } from "./useScores";
+import {
+  CORUM_SCORING_VERSION,
+  formatCorumScore,
+  getBestPlayerRecords,
+  getCorumBaseScore,
+  getCorumRecordScore,
+} from "./scoring";
 import {
   getLengthBackgroundColor,
   getLengthTextColor,
@@ -85,11 +93,13 @@ function useTheme() {
 const NAV_ITEMS = [
   { key: "home", label: "홈", href: "#/" },
   { key: "list", label: "리스트", href: "#/list" },
+  { key: "players", label: "점수", href: "#/players" },
   { key: "roulette", label: "룰렛", href: "#/roulette" },
 ];
 
 function getActiveNavKey(route) {
   if (route === "/roulette") return "roulette";
+  if (route === "/players") return "players";
   if (route === "/list" || route.startsWith("/maps/")) return "list";
   return "home";
 }
@@ -1507,6 +1517,8 @@ function HighlightText({ text, query }) {
 }
 
 function RankingRow({ item, query }) {
+  const baseScore = getCorumBaseScore(item.rank);
+
   return (
     <a
       className={`ranking-row ${getRankSizeClass(item.rank)} ${getRankBackgroundClass(item.rank)} ${getRankBorderClass(item.rank)}`}
@@ -1528,6 +1540,10 @@ function RankingRow({ item, query }) {
           <LengthBadge length={item.length} compact query={query} />
           <span className="neutral-badge">
             ID <HighlightText text={item.levelId || "-"} query={query} />
+          </span>
+          <span className="map-score-badge">
+            <small>100%</small>
+            <strong>{formatCorumScore(baseScore)} PTS</strong>
           </span>
         </div>
       </div>
@@ -1635,10 +1651,18 @@ function MapDetailPage({ maps, mapKey }) {
             <span>최소 등록 기록</span>
             <strong>{item.minimumRecord}%</strong>
           </div>
+          <div className="map-detail-fact map-detail-score">
+            <span>100% 배점</span>
+            <strong>{formatCorumScore(getCorumBaseScore(item.rank))} PTS</strong>
+          </div>
         </div>
       </article>
 
-      <RecordLeaderboard levelId={item.levelId} minimumRecord={item.minimumRecord} />
+      <RecordLeaderboard
+        levelId={item.levelId}
+        rank={item.rank}
+        minimumRecord={item.minimumRecord}
+      />
     </section>
   );
 }
@@ -1682,19 +1706,24 @@ function formatPlayTime(milliseconds) {
   return `${seconds}초`;
 }
 
-function RecordLeaderboard({ levelId, minimumRecord }) {
+function RecordLeaderboard({ levelId, rank, minimumRecord }) {
   const { records, loading, error, reload } = useRecords(levelId);
   const sortedRecords = useMemo(
     () =>
-      [...records].sort((left, right) => {
+      getBestPlayerRecords(records).sort((left, right) => {
         const percentDifference = (right.percent ?? -1) - (left.percent ?? -1);
         if (percentDifference !== 0) return percentDifference;
+
+        const scoreDifference =
+          getCorumRecordScore(rank, right.percent, minimumRecord) -
+          getCorumRecordScore(rank, left.percent, minimumRecord);
+        if (scoreDifference !== 0) return scoreDifference;
 
         const rightTime = Date.parse(right.clearedAt) || 0;
         const leftTime = Date.parse(left.clearedAt) || 0;
         return rightTime - leftTime;
       }),
-    [records],
+    [records, rank, minimumRecord],
   );
 
   return (
@@ -1745,6 +1774,11 @@ function RecordLeaderboard({ levelId, minimumRecord }) {
         <div className="record-list">
           {sortedRecords.map((record, index) => {
             const proofUrl = getSafeProofUrl(record.proofUrl);
+            const recordScore = getCorumRecordScore(
+              rank,
+              record.percent,
+              minimumRecord,
+            );
             const statusClass =
               record.status === "verified"
                 ? "is-verified"
@@ -1772,6 +1806,7 @@ function RecordLeaderboard({ levelId, minimumRecord }) {
                 <div className="record-percent">
                   <span>BEST</span>
                   <strong>{record.percent ?? "-"}%</strong>
+                  <em>{formatCorumScore(recordScore)} PTS</em>
                 </div>
 
                 <div className="record-metrics">
@@ -1796,6 +1831,147 @@ function RecordLeaderboard({ levelId, minimumRecord }) {
           })}
         </div>
       )}
+    </section>
+  );
+}
+
+function PlayerLeaderboardPage() {
+  const { players, loading, error, generatedAt, reload } = useScores();
+  const totalRecords = useMemo(
+    () => players.reduce((sum, player) => sum + player.recordCount, 0),
+    [players],
+  );
+  const totalCompletions = useMemo(
+    () => players.reduce((sum, player) => sum + player.completions, 0),
+    [players],
+  );
+
+  return (
+    <section className="players-page">
+      <div className="players-hero">
+        <div className="players-hero-copy">
+          <p className="section-kicker">CORUM PLAYER RANKING</p>
+          <h1>플레이어 점수</h1>
+          <p>
+            각 맵의 현재 순위와 최고 기록을 기준으로 계산합니다. 기록을 갱신하면
+            같은 플레이어와 맵의 기존 점수 대신 새 최고 기록만 반영됩니다.
+          </p>
+        </div>
+
+        <div className="score-scale-card" aria-label="코럼 점수 구간">
+          <div className="score-scale-head">
+            <span>SCORING MODEL</span>
+            <strong>{CORUM_SCORING_VERSION}</strong>
+          </div>
+          <div className="score-scale-list">
+            <p><span>TOP 1</span><strong>350.00</strong></p>
+            <p><span>TOP 2–5</span><strong>300 → 220</strong></p>
+            <p><span>MAIN 6–10</span><strong>200 → 140</strong></p>
+            <p><span>EXTENDED 11–25</span><strong>130 → 50</strong></p>
+            <p><span>LEGACY 26+</span><strong>45 × 0.94ⁿ</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div className="players-summary" aria-label="플레이어 점수 통계">
+        <StatItem label="RANKED PLAYERS" value={players.length} suffix="players" />
+        <StatItem label="SCORING RECORDS" value={totalRecords} suffix="best runs" />
+        <StatItem label="FULL CLEARS" value={totalCompletions} suffix="100%" />
+        <StatItem
+          label="TOP SCORE"
+          value={players.length > 0 ? formatCorumScore(players[0].score) : "0.00"}
+          suffix="pts"
+        />
+      </div>
+
+      <section className="players-board" aria-labelledby="players-board-title">
+        <div className="players-board-heading">
+          <div>
+            <p className="section-kicker">LIVE STANDINGS</p>
+            <h2 id="players-board-title">종합 순위</h2>
+            <p>
+              최소 등록 기록 이상인 미반려 기록을 합산합니다.
+              {generatedAt && ` · ${formatRecordDate(generatedAt)} 기준`}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="record-refresh"
+            onClick={reload}
+            disabled={loading}
+          >
+            <RefreshIcon />
+            <span>{loading ? "불러오는 중" : "새로고침"}</span>
+          </button>
+        </div>
+
+        {loading && players.length === 0 ? (
+          <div className="record-state">
+            <span className="record-loader" aria-hidden="true" />
+            <p>플레이어 점수를 계산하는 중입니다.</p>
+          </div>
+        ) : error ? (
+          <div className="record-state is-error">
+            <strong>점수를 불러오지 못했습니다.</strong>
+            <p>{error}</p>
+            <button type="button" onClick={reload}>다시 시도</button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="record-state">
+            <strong>아직 점수를 받은 플레이어가 없습니다.</strong>
+            <p>등록 기준 이상인 기록이 전송되면 이곳에 자동으로 표시됩니다.</p>
+          </div>
+        ) : (
+          <div className="player-score-list">
+            {players.map((player) => {
+              const bestRecord = player.bestRecord;
+
+              return (
+                <article
+                  className={`player-score-row player-score-rank-${Math.min(player.rank, 4)}`}
+                  key={`${player.rank}-${player.player}`}
+                >
+                  <span className="player-score-position">#{player.rank}</span>
+
+                  <div className="player-score-identity">
+                    <span className="player-score-avatar" aria-hidden="true">
+                      {player.player.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <strong>{player.player}</strong>
+                      <span>{player.recordCount} scoring record{player.recordCount === 1 ? "" : "s"}</span>
+                    </div>
+                  </div>
+
+                  <div className="player-best-record">
+                    <span>BEST MAP</span>
+                    {bestRecord?.levelId ? (
+                      <a href={`#/maps/${encodeURIComponent(bestRecord.levelId)}`}>
+                        <strong>#{bestRecord.rank} {bestRecord.title || bestRecord.levelId}</strong>
+                        <small>{bestRecord.percent}% · {formatCorumScore(bestRecord.score)} PTS</small>
+                      </a>
+                    ) : (
+                      <strong>-</strong>
+                    )}
+                  </div>
+
+                  <div className="player-score-counts">
+                    <p><span>MAPS</span><strong>{player.recordCount}</strong></p>
+                    <p><span>100%</span><strong>{player.completions}</strong></p>
+                  </div>
+
+                  <div className="player-score-total">
+                    <span>TOTAL SCORE</span>
+                    <strong>{formatCorumScore(player.score)}</strong>
+                    <small>PTS</small>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </section>
   );
 }
@@ -1915,6 +2091,7 @@ function App() {
   else if (error) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
   else if (route === "/") page = <Home maps={maps} />;
   else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
+  else if (route === "/players") page = <PlayerLeaderboardPage />;
   else if (route === "/roulette") page = <RoulettePage maps={maps} />;
   else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} />;
   else page = <Home maps={maps} />;

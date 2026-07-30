@@ -10,6 +10,7 @@ function normalizeRecord(record) {
   return {
     recordId: String(record?.recordId || "").trim(),
     levelId: String(record?.levelId || "").trim(),
+    accountId: String(record?.accountId || "").trim(),
     player: String(record?.player || "").trim(),
     percent: toNonNegativeNumber(record?.percent),
     clearedAt: String(record?.clearedAt || "").trim(),
