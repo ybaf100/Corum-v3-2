@@ -5,6 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>코럼 v3</title>
     <meta name="description" content="Google Spreadsheet 기반 커스텀 데몬리스트" />
+    <meta name="theme-color" content="#f4f4f1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@600;700&family=JetBrains+Mono:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css"
+    />
+    <style>
+      html[data-theme="dark"] { background: #07080d; }
+    </style>
+    <script>
+      (() => {
+        let theme = "light";
+
+        try {
+          const storedTheme = window.localStorage.getItem("corum-theme");
+          if (storedTheme === "dark" || storedTheme === "light") {
+            theme = storedTheme;
+          } else if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+            theme = "dark";
+          }
+        } catch {
+          if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+            theme = "dark";
+          }
+        }
+
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
