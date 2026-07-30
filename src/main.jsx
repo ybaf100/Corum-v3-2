@@ -99,7 +99,7 @@ const NAV_ITEMS = [
 
 function getActiveNavKey(route) {
   if (route === "/roulette") return "roulette";
-  if (route === "/players") return "players";
+  if (route === "/players" || route.startsWith("/players/")) return "players";
   if (route === "/list" || route.startsWith("/maps/")) return "list";
   return "home";
 }
@@ -1361,6 +1361,7 @@ function RoulettePage({ maps }) {
           </div>
         )}
       </section>
+
     </section>
   );
 }
@@ -1835,6 +1836,41 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
   );
 }
 
+function getPlayerProfileHref(player) {
+  const accountId = String(player?.accountId || "").trim();
+  if (accountId) {
+    return `#/players/account/${encodeURIComponent(accountId)}`;
+  }
+
+  return `#/players/name/${encodeURIComponent(String(player?.player || "").trim())}`;
+}
+
+function decodeRouteComponent(value) {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+}
+
+function ScoreScaleCard() {
+  return (
+    <section className="score-scale-card" aria-label="코럼 점수 구간">
+      <div className="score-scale-head">
+        <span>SCORING MODEL</span>
+        <strong>{CORUM_SCORING_VERSION}</strong>
+      </div>
+      <div className="score-scale-list">
+        <p><span>TOP 1</span><strong>350.00</strong></p>
+        <p><span>TOP 2–5</span><strong>300 → 220</strong></p>
+        <p><span>MAIN 6–10</span><strong>200 → 140</strong></p>
+        <p><span>EXTENDED 11–25</span><strong>130 → 50</strong></p>
+        <p><span>LEGACY 26+</span><strong>45 × 0.94ⁿ</strong></p>
+      </div>
+    </section>
+  );
+}
+
 function PlayerLeaderboardPage() {
   const { players, loading, error, generatedAt, reload } = useScores();
   const totalRecords = useMemo(
@@ -1856,20 +1892,6 @@ function PlayerLeaderboardPage() {
             각 맵의 현재 순위와 최고 기록을 기준으로 계산합니다. 기록을 갱신하면
             같은 플레이어와 맵의 기존 점수 대신 새 최고 기록만 반영됩니다.
           </p>
-        </div>
-
-        <div className="score-scale-card" aria-label="코럼 점수 구간">
-          <div className="score-scale-head">
-            <span>SCORING MODEL</span>
-            <strong>{CORUM_SCORING_VERSION}</strong>
-          </div>
-          <div className="score-scale-list">
-            <p><span>TOP 1</span><strong>350.00</strong></p>
-            <p><span>TOP 2–5</span><strong>300 → 220</strong></p>
-            <p><span>MAIN 6–10</span><strong>200 → 140</strong></p>
-            <p><span>EXTENDED 11–25</span><strong>130 → 50</strong></p>
-            <p><span>LEGACY 26+</span><strong>45 × 0.94ⁿ</strong></p>
-          </div>
         </div>
       </div>
 
@@ -1934,7 +1956,11 @@ function PlayerLeaderboardPage() {
                 >
                   <span className="player-score-position">#{player.rank}</span>
 
-                  <div className="player-score-identity">
+                  <a
+                    className="player-score-identity"
+                    href={getPlayerProfileHref(player)}
+                    aria-label={`${player.player} 프로필 보기`}
+                  >
                     <span className="player-score-avatar" aria-hidden="true">
                       {player.player.charAt(0).toUpperCase()}
                     </span>
@@ -1942,7 +1968,7 @@ function PlayerLeaderboardPage() {
                       <strong>{player.player}</strong>
                       <span>{player.recordCount} scoring record{player.recordCount === 1 ? "" : "s"}</span>
                     </div>
-                  </div>
+                  </a>
 
                   <div className="player-best-record">
                     <span>BEST MAP</span>
@@ -1965,6 +1991,206 @@ function PlayerLeaderboardPage() {
                     <span>TOTAL SCORE</span>
                     <strong>{formatCorumScore(player.score)}</strong>
                     <small>PTS</small>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <ScoreScaleCard />
+    </section>
+  );
+}
+
+function PlayerProfilePage({ identityType, identityValue }) {
+  const { players, loading, error, generatedAt, reload } = useScores();
+  const decodedIdentity = decodeRouteComponent(identityValue).trim();
+  const player = useMemo(() => {
+    if (identityType === "account") {
+      return players.find(
+        (entry) => String(entry.accountId || "").trim() === decodedIdentity,
+      );
+    }
+
+    const normalizedName = decodedIdentity.toLocaleLowerCase();
+    return players.find(
+      (entry) => entry.player.toLocaleLowerCase() === normalizedName,
+    );
+  }, [decodedIdentity, identityType, players]);
+  const scoringRecords = useMemo(() => {
+    if (!player) return [];
+
+    const records =
+      player.records.length > 0
+        ? player.records
+        : player.bestRecord
+          ? [player.bestRecord]
+          : [];
+
+    return [...records].sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      if (left.rank !== right.rank) return left.rank - right.rank;
+      return right.percent - left.percent;
+    });
+  }, [player]);
+
+  if (loading && !player) {
+    return (
+      <section className="player-profile-page">
+        <a className="player-profile-back" href="#/players">← 종합 순위로 돌아가기</a>
+        <div className="record-state player-profile-state">
+          <span className="record-loader" aria-hidden="true" />
+          <p>플레이어 프로필을 불러오는 중입니다.</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="player-profile-page">
+        <a className="player-profile-back" href="#/players">← 종합 순위로 돌아가기</a>
+        <div className="record-state is-error player-profile-state">
+          <strong>플레이어 프로필을 불러오지 못했습니다.</strong>
+          <p>{error}</p>
+          <button type="button" onClick={reload}>다시 시도</button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!player) {
+    return (
+      <section className="player-profile-page">
+        <a className="player-profile-back" href="#/players">← 종합 순위로 돌아가기</a>
+        <div className="record-state player-profile-state">
+          <strong>해당 플레이어를 찾을 수 없습니다.</strong>
+          <p>플레이어의 점수 기록이 변경되었거나 순위에서 제외되었을 수 있습니다.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const bestRecord = scoringRecords[0] || player.bestRecord;
+
+  return (
+    <section className="player-profile-page">
+      <a className="player-profile-back" href="#/players">
+        <span aria-hidden="true">←</span>
+        종합 순위로 돌아가기
+      </a>
+
+      <header
+        className={`player-profile-hero player-profile-rank-${Math.min(player.rank, 4)}`}
+      >
+        <div className="player-profile-identity">
+          <span className="player-profile-avatar" aria-hidden="true">
+            {player.player.charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <p className="section-kicker">CORUM PLAYER PROFILE</p>
+            <h1>{player.player}</h1>
+            <p>
+              {player.accountId
+                ? `GD ACCOUNT ${player.accountId}`
+                : "GEOMETRY DASH PLAYER"}
+              {generatedAt && ` · ${formatRecordDate(generatedAt)} 기준`}
+            </p>
+          </div>
+        </div>
+
+        <div className="player-profile-score">
+          <span>GLOBAL RANK</span>
+          <strong>#{player.rank}</strong>
+          <div>
+            <b>{formatCorumScore(player.score)}</b>
+            <small>PTS</small>
+          </div>
+        </div>
+      </header>
+
+      <div className="players-summary player-profile-summary" aria-label="플레이어 통계">
+        <StatItem label="TOTAL SCORE" value={formatCorumScore(player.score)} suffix="pts" />
+        <StatItem label="GLOBAL RANK" value={`#${player.rank}`} suffix="overall" />
+        <StatItem label="SCORING MAPS" value={player.recordCount} suffix="maps" />
+        <StatItem label="FULL CLEARS" value={player.completions} suffix="100%" />
+      </div>
+
+      {bestRecord?.levelId && (
+        <a
+          className={`player-profile-best ${getRankBorderClass(bestRecord.rank)}`}
+          href={`#/maps/${encodeURIComponent(bestRecord.levelId)}`}
+        >
+          <div>
+            <span>HIGHEST VALUE RECORD</span>
+            <strong>#{bestRecord.rank} {bestRecord.title || bestRecord.levelId}</strong>
+            <small>
+              {bestRecord.percent}% · 등록 기준 {bestRecord.minimumRecord || 100}%
+            </small>
+          </div>
+          <div>
+            <strong>{formatCorumScore(bestRecord.score)}</strong>
+            <span>PTS</span>
+          </div>
+        </a>
+      )}
+
+      <section className="player-profile-records" aria-labelledby="player-records-title">
+        <div className="players-board-heading">
+          <div>
+            <p className="section-kicker">SCORING HISTORY</p>
+            <h2 id="player-records-title">등재 맵 기록</h2>
+            <p>각 맵의 최고 기록 하나만 점수에 반영됩니다.</p>
+          </div>
+          <span className="player-profile-record-count">
+            {scoringRecords.length} MAP{scoringRecords.length === 1 ? "" : "S"}
+          </span>
+        </div>
+
+        {scoringRecords.length === 0 ? (
+          <div className="record-state">
+            <strong>표시할 상세 기록이 없습니다.</strong>
+          </div>
+        ) : (
+          <div className="player-profile-record-list">
+            {scoringRecords.map((record, index) => {
+              const statusClass =
+                record.status === "verified"
+                  ? "is-verified"
+                  : record.status === "rejected"
+                    ? "is-rejected"
+                    : "is-unverified";
+
+              return (
+                <article
+                  className={`player-profile-record-row ${getRankBorderClass(record.rank)}`}
+                  key={`${record.levelId}-${record.clearedAt || index}`}
+                >
+                  <span className="player-profile-map-rank">#{record.rank}</span>
+
+                  <div className="player-profile-map">
+                    <span>{record.tier || getTier(record.rank)}</span>
+                    <a href={`#/maps/${encodeURIComponent(record.levelId)}`}>
+                      {record.title || record.levelId}
+                    </a>
+                    <small>{formatRecordDate(record.clearedAt)}</small>
+                  </div>
+
+                  <div className="player-profile-progress">
+                    <span>BEST</span>
+                    <strong>{record.percent}%</strong>
+                    <small>MIN {record.minimumRecord || 100}%</small>
+                  </div>
+
+                  <span className={`record-status ${statusClass}`}>
+                    {getRecordStatusLabel(record.status)}
+                  </span>
+
+                  <div className="player-profile-record-score">
+                    <strong>{formatCorumScore(record.score)}</strong>
+                    <span>PTS</span>
                   </div>
                 </article>
               );
@@ -2081,6 +2307,7 @@ function App() {
   const searchParams = new URLSearchParams(queryString);
   const initialQuery = searchParams.get("q") || "";
   const mapMatch = route.match(/^\/maps\/(.+)$/);
+  const playerMatch = route.match(/^\/players\/(account|name)\/(.+)$/);
 
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -2092,6 +2319,14 @@ function App() {
   else if (route === "/") page = <Home maps={maps} />;
   else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
   else if (route === "/players") page = <PlayerLeaderboardPage />;
+  else if (playerMatch) {
+    page = (
+      <PlayerProfilePage
+        identityType={playerMatch[1]}
+        identityValue={playerMatch[2]}
+      />
+    );
+  }
   else if (route === "/roulette") page = <RoulettePage maps={maps} />;
   else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} />;
   else page = <Home maps={maps} />;

@@ -6,26 +6,40 @@ function toNonNegativeNumber(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function normalizeBestRecord(record) {
+function normalizeScoreRecord(record) {
   if (!record || typeof record !== "object") return null;
 
   return {
     levelId: String(record.levelId || "").trim(),
     title: String(record.title || "").trim(),
     rank: toNonNegativeNumber(record.rank),
+    tier: String(record.tier || "").trim(),
+    rating: String(record.rating || "").trim(),
     percent: toNonNegativeNumber(record.percent),
+    minimumRecord: toNonNegativeNumber(record.minimumRecord),
     score: toNonNegativeNumber(record.score),
+    clearedAt: String(record.clearedAt || "").trim(),
+    status: String(record.status || "unverified").trim().toLowerCase(),
   };
 }
 
 function normalizePlayer(entry) {
+  const records = Array.isArray(entry?.records)
+    ? entry.records
+        .map(normalizeScoreRecord)
+        .filter((record) => record?.levelId)
+    : [];
+  const bestRecord = normalizeScoreRecord(entry?.bestRecord) || records[0] || null;
+
   return {
     rank: Math.max(1, Math.trunc(toNonNegativeNumber(entry?.rank) || 1)),
+    accountId: String(entry?.accountId || "").trim(),
     player: String(entry?.player || "").trim(),
     score: toNonNegativeNumber(entry?.score),
     recordCount: Math.trunc(toNonNegativeNumber(entry?.recordCount)),
     completions: Math.trunc(toNonNegativeNumber(entry?.completions)),
-    bestRecord: normalizeBestRecord(entry?.bestRecord),
+    bestRecord,
+    records,
   };
 }
 
