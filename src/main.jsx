@@ -13,6 +13,7 @@ import {
   includesSearch,
 } from "./utils";
 import "./styles.css";
+import darkThemeCss from "./dark-theme.css?inline";
 
 function subscribe(callback) {
   window.addEventListener("hashchange", callback);
@@ -27,7 +28,59 @@ function useHashRoute() {
   return useSyncExternalStore(subscribe, getHash, getHash);
 }
 
+const THEME_STORAGE_KEY = "corum-theme";
 
+function getInitialTheme() {
+  if (typeof document === "undefined") return "light";
+
+  const bootstrappedTheme = document.documentElement.dataset.theme;
+  if (bootstrappedTheme === "dark" || bootstrappedTheme === "light") {
+    return bootstrappedTheme;
+  }
+
+  try {
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === "dark" || storedTheme === "light") return storedTheme;
+  } catch {
+    // localStorage가 차단된 환경에서는 시스템 설정을 사용한다.
+  }
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function useTheme() {
+  const [theme, setTheme] = React.useState(getInitialTheme);
+
+  React.useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+
+    let darkStyle = document.getElementById("corum-dark-theme");
+    if (!darkStyle) {
+      darkStyle = document.createElement("style");
+      darkStyle.id = "corum-dark-theme";
+      darkStyle.textContent = darkThemeCss;
+      document.head.appendChild(darkStyle);
+    }
+    darkStyle.media = theme === "dark" ? "all" : "not all";
+
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    themeColor?.setAttribute("content", theme === "dark" ? "#07080d" : "#f4f4f1");
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // 저장할 수 없어도 현재 탭의 테마 전환은 유지한다.
+    }
+  }, [theme]);
+
+  const toggleTheme = React.useCallback(() => {
+    setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
+  }, []);
+
+  return { theme, toggleTheme };
+}
 
 const NAV_ITEMS = [
   { key: "home", label: "홈", href: "#/" },
@@ -110,7 +163,25 @@ function NavTabs({ route }) {
   );
 }
 
-function Layout({ children, route }) {
+function ThemeToggle({ theme, onToggle }) {
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={onToggle}
+      aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+      aria-pressed={isDark}
+      title={isDark ? "라이트 모드" : "다크 모드"}
+    >
+      {isDark ? <SunIcon /> : <MoonIcon />}
+      <span>{isDark ? "LIGHT" : "DARK"}</span>
+    </button>
+  );
+}
+
+function Layout({ children, route, theme, onToggleTheme }) {
   return (
     <div className="site-shell">
       <header className="site-header-wrap">
@@ -120,7 +191,10 @@ function Layout({ children, route }) {
             {SITE_VERSION && <small>{SITE_VERSION}</small>}
           </a>
 
-          <NavTabs route={route} />
+          <div className="header-actions">
+            <NavTabs route={route} />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          </div>
         </div>
       </header>
 
@@ -1791,9 +1865,40 @@ function RefreshIcon() {
   );
 }
 
+function MoonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M20 15.4A8 8 0 0 1 8.6 4a7.7 7.7 0 1 0 11.4 11.4Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function App() {
   const hash = useHashRoute();
   const { maps, loading, error } = useMaps();
+  const { theme, toggleTheme } = useTheme();
 
   const rawRoute = hash.replace(/^#/, "") || "/";
   const [route, queryString = ""] = rawRoute.split("?");
@@ -1814,7 +1919,11 @@ function App() {
   else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} />;
   else page = <Home maps={maps} />;
 
-  return <Layout route={route}>{page}</Layout>;
+  return (
+    <Layout route={route} theme={theme} onToggleTheme={toggleTheme}>
+      {page}
+    </Layout>
+  );
 }
 
 createRoot(document.getElementById("root")).render(<App />);
