@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCorumApiUrl } from "./config";
+import { getCsmpProgress } from "./csmp";
 
 function toNonNegativeNumber(value) {
   const number = Number(value);
@@ -56,6 +57,9 @@ function normalizePlayer(entry) {
     completions: Math.trunc(toNonNegativeNumber(entry?.completions)),
     bestRecord,
     records,
+    csmp: getCsmpProgress(
+      records.length > 0 ? records : bestRecord ? [bestRecord] : [],
+    ),
   };
 }
 

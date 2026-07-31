@@ -410,6 +410,48 @@ function RankingThumbnail({ item }) {
   );
 }
 
+function CsmpRankIcon({ rank }) {
+  const sources = useMemo(
+    () =>
+      rank
+        ? ["png", "jpg", "jpeg"].map(
+            (extension) => `./images/csmp/${rank.name}.${extension}`,
+          )
+        : [],
+    [rank],
+  );
+  const [sourceIndex, setSourceIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    setSourceIndex(0);
+  }, [rank?.key]);
+
+  if (!rank) return null;
+
+  const source = sources[sourceIndex];
+
+  return (
+    <span
+      className={`csmp-rank-icon csmp-${rank.key}`}
+      role="img"
+      aria-label={`CSMP ${rank.name} 랭크`}
+      title={`CSMP ${rank.name}`}
+    >
+      {source ? (
+        <img
+          src={source}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          onError={() => setSourceIndex((current) => current + 1)}
+        />
+      ) : (
+        <span aria-hidden="true">{rank.name.charAt(0)}</span>
+      )}
+    </span>
+  );
+}
+
 function getRankBorderClass(rank) {
   const value = Number(rank);
   if (value === 1) return "rank-border-gold";
@@ -1961,8 +2003,11 @@ function PlayerLeaderboardPage() {
                     href={getPlayerProfileHref(player)}
                     aria-label={`${player.player} 프로필 보기`}
                   >
-                    <span className="player-score-avatar" aria-hidden="true">
-                      {player.player.charAt(0).toUpperCase()}
+                    <span className="player-score-avatar-stack">
+                      <span className="player-score-avatar" aria-hidden="true">
+                        {player.player.charAt(0).toUpperCase()}
+                      </span>
+                      <CsmpRankIcon rank={player.csmp.current} />
                     </span>
                     <div>
                       <strong>{player.player}</strong>
@@ -2074,6 +2119,8 @@ function PlayerProfilePage({ identityType, identityValue }) {
   }
 
   const bestRecord = scoringRecords[0] || player.bestRecord;
+  const currentCsmpRank = player.csmp.current;
+  const nextCsmpRank = player.csmp.next;
 
   return (
     <section className="player-profile-page">
@@ -2092,6 +2139,19 @@ function PlayerProfilePage({ identityType, identityValue }) {
           <div>
             <p className="section-kicker">CORUM PLAYER PROFILE</p>
             <h1>{player.player}</h1>
+            <div
+              className={`player-profile-csmp csmp-${
+                currentCsmpRank?.key || "unranked"
+              }`}
+            >
+              <span>CSMP RANK</span>
+              <strong>{currentCsmpRank?.name || "Unranked"}</strong>
+              <small>
+                {nextCsmpRank
+                  ? `NEXT ${nextCsmpRank.name.toUpperCase()} · ${nextCsmpRank.completed}/${nextCsmpRank.required}`
+                  : "ALL RANKS COMPLETED"}
+              </small>
+            </div>
             <p>
               {player.accountId
                 ? `GD ACCOUNT ${player.accountId}`

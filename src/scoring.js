@@ -63,6 +63,15 @@ export function getCorumRecordScore(rank, progress, minimumRecord) {
   );
 }
 
+export function getFrozenOrEstimatedScore(record, rank, minimumRecord) {
+  const rawScore = record?.score;
+  if (rawScore != null && String(rawScore).trim() !== "") {
+    const frozenScore = toFiniteNumber(rawScore);
+    if (frozenScore !== null && frozenScore >= 0) return frozenScore;
+  }
+  return getCorumRecordScore(rank, record?.percent, minimumRecord);
+}
+
 export function formatCorumScore(value) {
   const score = toFiniteNumber(value);
   return (score === null ? 0 : Math.max(score, 0)).toFixed(2);
