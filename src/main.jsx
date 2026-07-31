@@ -822,6 +822,11 @@ function RouletteMapCard({ item, preview = false }) {
           <RatingBadge rating={item.rating} compact />
           <LengthBadge length={item.length} compact />
           <span className="neutral-badge">ID {item.levelId || "-"}</span>
+          {item.alternateLevelId ? (
+            <span className="neutral-badge alternate-level-badge">
+              ALT {item.alternateLevelId}
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -1607,6 +1612,12 @@ function RankingRow({ item, query }) {
           <span className="neutral-badge">
             ID <HighlightText text={item.levelId || "-"} query={query} />
           </span>
+          {item.alternateLevelId ? (
+            <span className="neutral-badge alternate-level-badge">
+              ALT{" "}
+              <HighlightText text={item.alternateLevelId} query={query} />
+            </span>
+          ) : null}
           <span className="map-score-badge">
             <small>100%</small>
             <strong>{formatCorumScore(baseScore)} PTS</strong>
@@ -1633,7 +1644,11 @@ function RankingRow({ item, query }) {
 function MapDetailPage({ maps, mapKey }) {
   const decodedKey = decodeURIComponent(mapKey || "");
   const item = maps.find(
-    (map) => String(map.levelId) === decodedKey || String(map.orderId) === decodedKey || map.title === decodedKey,
+    (map) =>
+      String(map.levelId) === decodedKey ||
+      String(map.alternateLevelId) === decodedKey ||
+      String(map.orderId) === decodedKey ||
+      map.title === decodedKey,
   );
 
   if (!item) {
@@ -1711,7 +1726,18 @@ function MapDetailPage({ maps, mapKey }) {
           </div>
           <div className="map-detail-fact">
             <span>맵 코드</span>
-            <strong className="mono">{item.levelId || "-"}</strong>
+            <strong className="mono map-code-stack">
+              <span>
+                <small>대표</small>
+                {item.levelId || "-"}
+              </span>
+              {item.alternateLevelId ? (
+                <span>
+                  <small>대체</small>
+                  {item.alternateLevelId}
+                </span>
+              ) : null}
+            </strong>
           </div>
           <div className="map-detail-fact">
             <span>최소 등록 기록</span>

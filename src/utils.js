@@ -29,6 +29,13 @@ const HEADER_MAP = {
   "Level ID": "levelId",
   "ID": "levelId",
 
+  "대체 맵 코드": "alternateLevelId",
+  "대체맵코드": "alternateLevelId",
+  "alternateLevelId": "alternateLevelId",
+  "Alternate Level ID": "alternateLevelId",
+  "Alternative Level ID": "alternateLevelId",
+  "Alt Level ID": "alternateLevelId",
+
   "제작자": "creator",
   "creator": "creator",
   "Creator": "creator",
@@ -179,13 +186,22 @@ function normalizeMapItem(item) {
     item["image"] ||
     "";
 
+  const levelId = String(item.levelId || "").trim();
+  const alternateLevelIdText = String(item.alternateLevelId || "").trim();
+  const alternateLevelId =
+    /^\d+$/.test(alternateLevelIdText) &&
+    alternateLevelIdText !== levelId
+      ? alternateLevelIdText
+      : "";
+
   return {
     rank: toNumber(item.rank),
     orderId: String(item.orderId || "").trim(),
     title: String(item.title || "").trim(),
     rating: normalizeRating(item.rating),
     length: String(item.length || "").trim(),
-    levelId: String(item.levelId || "").trim(),
+    levelId,
+    alternateLevelId,
     creator: String(item.creator || "").trim(),
     verifier: String(item.verifier || "").trim(),
     minimumRecord: normalizeMinimumRecord(item.minimumRecord),
@@ -246,6 +262,7 @@ export function includesSearch(item, query) {
     item.rating,
     item.length,
     item.levelId,
+    item.alternateLevelId,
     item.creator,
     item.verifier,
     item.minimumRecord,

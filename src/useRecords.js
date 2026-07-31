@@ -92,10 +92,13 @@ export function useRecords(levelId) {
 
       if (requestRef.current !== requestId) return;
 
+      const canonicalLevelId = String(
+        payload.levelId || normalizedLevelId,
+      ).trim();
       setRecords(
         payload.records
           .map(normalizeRecord)
-          .filter((record) => record.levelId === normalizedLevelId && record.player),
+          .filter((record) => record.levelId === canonicalLevelId && record.player),
       );
     } catch (loadError) {
       if (requestRef.current !== requestId) return;
