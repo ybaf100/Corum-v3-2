@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCorumApiUrl } from "./config";
 import { getCsmpProgress } from "./csmp";
 
@@ -40,7 +40,7 @@ function normalizeScoreRecord(record) {
   };
 }
 
-function normalizePlayer(entry) {
+function normalizePlayer(entry, csmpStages) {
   const records = Array.isArray(entry?.records)
     ? entry.records
         .map(normalizeScoreRecord)
@@ -59,6 +59,7 @@ function normalizePlayer(entry) {
     records,
     csmp: getCsmpProgress(
       records.length > 0 ? records : bestRecord ? [bestRecord] : [],
+      csmpStages,
     ),
   };
 }
@@ -70,8 +71,8 @@ function getApiError(payload, response) {
   return "점수 API가 요청을 처리하지 못했습니다.";
 }
 
-export function useScores() {
-  const [players, setPlayers] = useState([]);
+export function useScores(csmpStages = []) {
+  const [rawPlayers, setRawPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
@@ -98,15 +99,11 @@ export function useScores() {
 
       if (requestRef.current !== requestId) return;
 
-      setPlayers(
-        payload.players
-          .map(normalizePlayer)
-          .filter((player) => player.player && player.score > 0),
-      );
+      setRawPlayers(payload.players);
       setGeneratedAt(String(payload.generatedAt || ""));
     } catch (loadError) {
       if (requestRef.current !== requestId) return;
-      setPlayers([]);
+      setRawPlayers([]);
       setGeneratedAt("");
       setError(
         loadError instanceof Error
@@ -125,6 +122,14 @@ export function useScores() {
       requestRef.current += 1;
     };
   }, [load]);
+
+  const players = useMemo(
+    () =>
+      rawPlayers
+        .map((entry) => normalizePlayer(entry, csmpStages))
+        .filter((player) => player.player && player.score > 0),
+    [rawPlayers, csmpStages],
+  );
 
   return { players, loading, error, generatedAt, reload: load };
 }

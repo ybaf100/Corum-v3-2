@@ -52,6 +52,14 @@ const HEADER_MAP = {
   "Min Record": "minimumRecord",
   "minimumRecord": "minimumRecord",
 
+  "CSMP 티어 배정": "csmpTier",
+  "CSMP티어배정": "csmpTier",
+  "CSMP 티어": "csmpTier",
+  "CSMP티어": "csmpTier",
+  "CSMP Tier Assignment": "csmpTier",
+  "CSMP Tier": "csmpTier",
+  "csmpTier": "csmpTier",
+
   "썸네일": "thumbnail",
   "thumbnail": "thumbnail",
   "Thumbnail": "thumbnail",
@@ -205,6 +213,7 @@ function normalizeMapItem(item) {
     creator: String(item.creator || "").trim(),
     verifier: String(item.verifier || "").trim(),
     minimumRecord: normalizeMinimumRecord(item.minimumRecord),
+    csmpTier: String(item.csmpTier || "").trim(),
     thumbnail: String(thumbnail).trim(),
   };
 }
@@ -270,6 +279,7 @@ export function includesSearch(item, query) {
     item.creator,
     item.verifier,
     item.minimumRecord,
+    item.csmpTier,
     item.thumbnail,
   ]
     .join(" ")

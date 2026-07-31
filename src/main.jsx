@@ -2,11 +2,14 @@ import React, { useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { SITE_TITLE, SITE_VERSION } from "./config";
 import {
-  CSMP_STAGES,
   getCompletedCsmpMapKeys,
-  getCsmpStageForMapTitle,
+  getCsmpMapKey,
+  getCsmpStageForMap,
+  getCsmpStyle,
+  getCsmpTotalMapCount,
   normalizeCsmpMapTitle,
 } from "./csmp";
+import { useCsmp } from "./useCsmp";
 import { useMaps } from "./useMaps";
 import { useRecords } from "./useRecords";
 import { useScores } from "./useScores";
@@ -779,13 +782,19 @@ function RankingThumbnail({ item }) {
 
 function CsmpRankIcon({ rank, showcase = false }) {
   const sources = useMemo(
-    () =>
-      rank
-        ? ["png", "jpg", "jpeg"].map(
-            (extension) =>
-              `./images/csmp/${rank.iconName || rank.name}.${extension}`,
-          )
-        : [],
+    () => {
+      if (!rank) return [];
+      const preferred = rank.iconFile
+        ? [`./images/csmp/${rank.iconFile}`]
+        : [];
+      const fallbackName = rank.iconName || rank.name;
+      return [
+        ...preferred,
+        ...["png", "jpg", "jpeg", "webp"].map(
+          (extension) => `./images/csmp/${fallbackName}.${extension}`,
+        ),
+      ].filter((source, index, values) => values.indexOf(source) === index);
+    },
     [rank],
   );
   const [sourceIndex, setSourceIndex] = React.useState(0);
@@ -801,6 +810,7 @@ function CsmpRankIcon({ rank, showcase = false }) {
   return (
     <span
       className={`csmp-rank-icon csmp-${rank.key}${showcase ? " is-showcase" : ""}`}
+      style={getCsmpStyle(rank)}
       role="img"
       aria-label={`CSMP ${rank.name} 랭크`}
       title={`CSMP ${rank.name}`}
@@ -824,7 +834,10 @@ function CsmpMapBadge({ stage }) {
   if (!stage) return null;
 
   return (
-    <span className={`csmp-map-badge csmp-${stage.key}`}>
+    <span
+      className={`csmp-map-badge csmp-${stage.key}`}
+      style={getCsmpStyle(stage)}
+    >
       CSMP {stage.name}
     </span>
   );
@@ -1804,7 +1817,7 @@ function RoulettePage({ maps, loading = false }) {
   );
 }
 
-function ListPage({ maps, initialQuery = "", loading = false }) {
+function ListPage({ maps, initialQuery = "", loading = false, csmpStages = [] }) {
   const [query, setQuery] = React.useState(initialQuery);
   const [filter, setFilter] = React.useState("all");
   const [ratingRange, setRatingRange] = React.useState([0, RATING_RANGE_MAX]);
@@ -1882,7 +1895,12 @@ function ListPage({ maps, initialQuery = "", loading = false }) {
           ) : (
             <div className="ranking-list">
               {filteredMaps.map((item) => (
-                <RankingRow key={getMapKey(item)} item={item} query={query} />
+                <RankingRow
+                  key={getMapKey(item)}
+                  item={item}
+                  query={query}
+                  csmpStages={csmpStages}
+                />
               ))}
             </div>
           )}
@@ -1900,8 +1918,8 @@ function ListPage({ maps, initialQuery = "", loading = false }) {
   );
 }
 
-function FeaturedMapCard({ item }) {
-  const csmpStage = getCsmpStageForMapTitle(item.title);
+function FeaturedMapCard({ item, csmpStages = [] }) {
+  const csmpStage = getCsmpStageForMap(item, csmpStages);
 
   return (
     <a className={`featured-map-card featured-rank-${item.rank} ${getRankBorderClass(item.rank)}`} href={`#/maps/${getMapKey(item)}`}>
@@ -1963,9 +1981,9 @@ function HighlightText({ text, query }) {
   return pieces.length > 0 ? pieces : value;
 }
 
-function RankingRow({ item, query }) {
+function RankingRow({ item, query, csmpStages = [] }) {
   const baseScore = getCorumBaseScore(item.rank);
-  const csmpStage = getCsmpStageForMapTitle(item.title);
+  const csmpStage = getCsmpStageForMap(item, csmpStages);
   const displayedLevelId = getDisplayedLevelId(item);
 
   return (
@@ -2334,19 +2352,35 @@ function ScoreScaleCard() {
   );
 }
 
-function CsmpPage({ maps, mapsLoading = false }) {
+function CsmpPage({
+  maps,
+  mapsLoading = false,
+  csmpStages = [],
+  csmpLoading = false,
+  csmpError = "",
+  reloadCsmp,
+}) {
   const {
     players,
     loading: playersLoading,
     error: playersError,
-  } = useScores();
+  } = useScores(csmpStages);
   const [playerQuery, setPlayerQuery] = React.useState("");
   const [submittedQuery, setSubmittedQuery] = React.useState("");
-  const mapsByTitle = useMemo(
-    () =>
-      new Map(
-        maps.map((map) => [normalizeCsmpMapTitle(map.title), map]),
-      ),
+  const mapsByIdentity = useMemo(
+    () => {
+      const lookup = new Map();
+      maps.forEach((map) => {
+        const mapKey = getCsmpMapKey(map);
+        if (mapKey) lookup.set(mapKey, map);
+        if (map.alternateLevelId) {
+          lookup.set(getCsmpMapKey({ levelId: map.alternateLevelId }), map);
+        }
+        const titleKey = normalizeCsmpMapTitle(map.title);
+        if (titleKey) lookup.set(`title:${titleKey}`, map);
+      });
+      return lookup;
+    },
     [maps],
   );
   const selectedPlayer = useMemo(() => {
@@ -2365,12 +2399,12 @@ function CsmpPage({ maps, mapsLoading = false }) {
     return selectedPlayer.bestRecord ? [selectedPlayer.bestRecord] : [];
   }, [selectedPlayer]);
   const completedMapKeys = useMemo(
-    () => getCompletedCsmpMapKeys(selectedPlayerRecords),
-    [selectedPlayerRecords],
+    () => getCompletedCsmpMapKeys(selectedPlayerRecords, csmpStages),
+    [selectedPlayerRecords, csmpStages],
   );
   const totalCsmpMaps = useMemo(
-    () => CSMP_STAGES.reduce((total, stage) => total + stage.maps.length, 0),
-    [],
+    () => getCsmpTotalMapCount(csmpStages),
+    [csmpStages],
   );
   const playerNotFound =
     Boolean(submittedQuery) &&
@@ -2382,6 +2416,33 @@ function CsmpPage({ maps, mapsLoading = false }) {
     event.preventDefault();
     setSubmittedQuery(playerQuery.trim());
   };
+
+  if (csmpLoading && csmpStages.length === 0) {
+    return <CsmpPageSkeleton />;
+  }
+
+  if (csmpError) {
+    return (
+      <section className="csmp-page">
+        <div className="record-state is-error">
+          <strong>CSMP 설정을 불러오지 못했습니다.</strong>
+          <p>{csmpError}</p>
+          {reloadCsmp && <button type="button" onClick={reloadCsmp}>다시 시도</button>}
+        </div>
+      </section>
+    );
+  }
+
+  if (csmpStages.length === 0) {
+    return (
+      <section className="csmp-page">
+        <div className="record-state">
+          <strong>설정된 CSMP 티어가 없습니다.</strong>
+          <p>스프레드시트의 CSMP Tiers 탭에서 티어를 추가해 주세요.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="csmp-page">
@@ -2436,7 +2497,10 @@ function CsmpPage({ maps, mapsLoading = false }) {
                 “{submittedQuery}” 플레이어를 찾을 수 없습니다.
               </p>
             ) : selectedPlayer ? (
-              <div className="csmp-player-result">
+              <div
+                className="csmp-player-result"
+                style={getCsmpStyle(selectedPlayer.csmp.current)}
+              >
                 <div>
                   <span>PLAYER FOUND</span>
                   <strong>{selectedPlayer.player}</strong>
@@ -2462,13 +2526,16 @@ function CsmpPage({ maps, mapsLoading = false }) {
         </div>
 
         <div className="csmp-progression" aria-label="CSMP 랭크 진행 순서">
-          {CSMP_STAGES.map((stage, index) => (
+          {csmpStages.map((stage, index) => (
             <React.Fragment key={stage.key}>
-              <div className={`csmp-progression-step csmp-${stage.key}`}>
+              <div
+                className={`csmp-progression-step csmp-${stage.key}`}
+                style={getCsmpStyle(stage)}
+              >
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <strong>{stage.name}</strong>
               </div>
-              {index < CSMP_STAGES.length - 1 && (
+              {index < csmpStages.length - 1 && (
                 <ArrowIcon />
               )}
             </React.Fragment>
@@ -2477,8 +2544,8 @@ function CsmpPage({ maps, mapsLoading = false }) {
       </header>
 
       <div className="csmp-stage-grid">
-        {CSMP_STAGES.map((stage, index) => {
-          const requiresAll = stage.required === stage.maps.length;
+        {csmpStages.map((stage, index) => {
+          const requiresAll = stage.requiresAll;
           const playerStage = selectedPlayer?.csmp.stages.find(
             (progress) => progress.key === stage.key,
           );
@@ -2487,6 +2554,7 @@ function CsmpPage({ maps, mapsLoading = false }) {
             <article
               className={`csmp-stage-card csmp-${stage.key}`}
               key={stage.key}
+              style={getCsmpStyle(stage)}
             >
               <div className="csmp-stage-heading">
                 <CsmpRankIcon rank={stage} showcase />
@@ -2504,11 +2572,15 @@ function CsmpPage({ maps, mapsLoading = false }) {
               </div>
 
               <ol className="csmp-map-list">
-                {stage.maps.map((title) => {
+                {stage.maps.map((csmpMap) => {
+                  const title = csmpMap.title;
                   const titleKey = normalizeCsmpMapTitle(title);
-                  const map = mapsByTitle.get(titleKey);
+                  const csmpMapKey = getCsmpMapKey(csmpMap);
+                  const map =
+                    mapsByIdentity.get(csmpMapKey) ||
+                    mapsByIdentity.get(`title:${titleKey}`);
                   const isCleared = selectedPlayer
-                    ? completedMapKeys.has(titleKey)
+                    ? completedMapKeys.has(csmpMapKey)
                     : null;
                   const content = (
                     <>
@@ -2535,7 +2607,7 @@ function CsmpPage({ maps, mapsLoading = false }) {
                             : "is-uncleared"
                           : ""
                       }
-                      key={title}
+                      key={csmpMapKey || title}
                     >
                       {map ? (
                         <a href={`#/maps/${getMapKey(map)}`}>{content}</a>
@@ -2554,8 +2626,15 @@ function CsmpPage({ maps, mapsLoading = false }) {
   );
 }
 
-function PlayerLeaderboardPage() {
-  const { players, loading, error, generatedAt, reload } = useScores();
+function PlayerLeaderboardPage({ csmpStages = [], csmpLoading = false }) {
+  const {
+    players,
+    loading: scoresLoading,
+    error,
+    generatedAt,
+    reload,
+  } = useScores(csmpStages);
+  const loading = scoresLoading || csmpLoading;
   const totalRecords = useMemo(
     () => players.reduce((sum, player) => sum + player.recordCount, 0),
     [players],
@@ -2691,8 +2770,20 @@ function PlayerLeaderboardPage() {
   );
 }
 
-function PlayerProfilePage({ identityType, identityValue }) {
-  const { players, loading, error, generatedAt, reload } = useScores();
+function PlayerProfilePage({
+  identityType,
+  identityValue,
+  csmpStages = [],
+  csmpLoading = false,
+}) {
+  const {
+    players,
+    loading: scoresLoading,
+    error,
+    generatedAt,
+    reload,
+  } = useScores(csmpStages);
+  const loading = scoresLoading || csmpLoading;
   const decodedIdentity = decodeRouteComponent(identityValue).trim();
   const player = useMemo(() => {
     if (identityType === "account") {
@@ -2777,6 +2868,7 @@ function PlayerProfilePage({ identityType, identityValue }) {
               className={`player-profile-csmp csmp-${
                 currentCsmpRank?.key || "unranked"
               }`}
+              style={getCsmpStyle(currentCsmpRank)}
             >
               <span>CSMP RANK</span>
               <strong>{currentCsmpRank?.name || "Unranked"}</strong>
@@ -2994,6 +3086,12 @@ function SunIcon() {
 function App() {
   const hash = useHashRoute();
   const { maps, loading, error } = useMaps();
+  const {
+    stages: csmpStages,
+    loading: csmpLoading,
+    error: csmpError,
+    reload: reloadCsmp,
+  } = useCsmp();
   const { theme, toggleTheme } = useTheme();
 
   const rawRoute = hash.replace(/^#/, "") || "/";
@@ -3016,14 +3114,37 @@ function App() {
   let page = null;
   if (error && routeNeedsMaps) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
   else if (route === "/") page = <Home maps={maps} loading={loading} />;
-  else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} loading={loading} />;
-  else if (route === "/players") page = <PlayerLeaderboardPage />;
-  else if (route === "/csmp") page = <CsmpPage maps={maps} mapsLoading={loading} />;
+  else if (route === "/list") page = (
+    <ListPage
+      maps={maps}
+      initialQuery={initialQuery}
+      loading={loading}
+      csmpStages={csmpStages}
+    />
+  );
+  else if (route === "/players") page = (
+    <PlayerLeaderboardPage
+      csmpStages={csmpStages}
+      csmpLoading={csmpLoading}
+    />
+  );
+  else if (route === "/csmp") page = (
+    <CsmpPage
+      maps={maps}
+      mapsLoading={loading}
+      csmpStages={csmpStages}
+      csmpLoading={csmpLoading}
+      csmpError={csmpError}
+      reloadCsmp={reloadCsmp}
+    />
+  );
   else if (playerMatch) {
     page = (
       <PlayerProfilePage
         identityType={playerMatch[1]}
         identityValue={playerMatch[2]}
+        csmpStages={csmpStages}
+        csmpLoading={csmpLoading}
       />
     );
   }
