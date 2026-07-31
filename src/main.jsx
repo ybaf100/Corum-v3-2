@@ -1987,6 +1987,9 @@ function RankingRow({ item, query, csmpStages = [] }) {
   const baseScore = getCorumBaseScore(item.rank);
   const csmpStage = getCsmpStageForMap(item, csmpStages);
   const displayedLevelId = getDisplayedLevelId(item);
+  const minimumRecord = Number(item.minimumRecord);
+  const showsMinimumRecord =
+    Number.isFinite(minimumRecord) && minimumRecord >= 1 && minimumRecord < 100;
 
   return (
     <a
@@ -1998,6 +2001,14 @@ function RankingRow({ item, query, csmpStages = [] }) {
           <HighlightText text={String(item.rank).padStart(2, "0")} query={query} />
         </strong>
         <span>{getTier(item.rank)}</span>
+        {showsMinimumRecord && (
+          <small
+            className="ranking-minimum-record"
+            title={`최소 등재 기록 ${minimumRecord}%`}
+          >
+            {minimumRecord}%
+          </small>
+        )}
       </div>
 
       <RankingThumbnail item={item} />

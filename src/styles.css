@@ -635,6 +635,19 @@ svg { width: 1em; height: 1em; display: block; }
 .ranking-position { display: flex; flex-direction: column; }
 .ranking-position strong { font-size: 42px; line-height: .85; letter-spacing: -.075em; font-weight: 950; }
 .ranking-position span { margin-top: 8px; color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.ranking-minimum-record {
+  align-self: flex-start;
+  margin-top: 7px;
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
 .ranking-thumbnail {
   position: relative;
   width: var(--ranking-thumbnail-width);
