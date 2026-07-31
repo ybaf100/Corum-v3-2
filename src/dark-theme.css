@@ -2187,3 +2187,25 @@ h1, h2, h3 { font-family: var(--font-display); }
   background: rgba(248, 113, 113, .13);
   color: #ff9696;
 }
+
+.page-skeleton,
+.skeleton-record-list {
+  --skeleton-base: #1b1e2a;
+  --skeleton-highlight: rgba(255, 255, 255, .11);
+}
+
+.skeleton-ranking-row,
+.skeleton-player-row,
+.skeleton-record-row,
+.skeleton-csmp-stage,
+.skeleton-roulette-result,
+.skeleton-players-hero,
+.skeleton-board,
+.skeleton-score-scale,
+.skeleton-detail-facts,
+.skeleton-profile-best,
+.skeleton-stats,
+.skeleton-toolbar {
+  border-color: var(--line);
+  background: var(--panel);
+}

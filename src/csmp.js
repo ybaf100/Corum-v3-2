@@ -1,7 +1,8 @@
 export const CSMP_STAGES = Object.freeze([
   Object.freeze({
-    key: "white",
-    name: "White",
+    key: "red",
+    name: "Red",
+    iconName: "White",
     required: 4,
     maps: Object.freeze([
       "Fuselage V",

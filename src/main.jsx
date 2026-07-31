@@ -227,6 +227,329 @@ function Layout({ children, route, theme, onToggleTheme }) {
   );
 }
 
+function SkeletonBlock({ className = "" }) {
+  return (
+    <span
+      className={`skeleton-block${className ? ` ${className}` : ""}`}
+      aria-hidden="true"
+    />
+  );
+}
+
+function SkeletonScreen({ className = "", label, children }) {
+  return (
+    <section
+      className={`page-skeleton${className ? ` ${className}` : ""}`}
+      aria-busy="true"
+      aria-label={label}
+    >
+      <span className="visually-hidden">{label}</span>
+      {children}
+    </section>
+  );
+}
+
+function SkeletonHeading() {
+  return (
+    <div className="skeleton-heading">
+      <SkeletonBlock className="skeleton-kicker" />
+      <SkeletonBlock className="skeleton-title" />
+      <SkeletonBlock className="skeleton-copy-line" />
+    </div>
+  );
+}
+
+function SkeletonStats() {
+  return (
+    <div className="skeleton-stats">
+      {Array.from({ length: 4 }, (_, index) => (
+        <div className="skeleton-stat" key={index}>
+          <SkeletonBlock className="skeleton-label" />
+          <SkeletonBlock className="skeleton-number" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonRankingRows({ count = 6 }) {
+  return (
+    <div className="skeleton-ranking-list">
+      {Array.from({ length: count }, (_, index) => (
+        <div className="skeleton-ranking-row" key={index}>
+          <SkeletonBlock className="skeleton-rank" />
+          <SkeletonBlock className="skeleton-thumbnail" />
+          <div className="skeleton-ranking-copy">
+            <SkeletonBlock className="skeleton-row-title" />
+            <div className="skeleton-chip-row">
+              <SkeletonBlock className="skeleton-chip" />
+              <SkeletonBlock className="skeleton-chip is-wide" />
+              <SkeletonBlock className="skeleton-chip" />
+            </div>
+          </div>
+          <div className="skeleton-ranking-people">
+            <SkeletonBlock className="skeleton-label" />
+            <SkeletonBlock className="skeleton-copy-line is-short" />
+            <SkeletonBlock className="skeleton-label" />
+            <SkeletonBlock className="skeleton-copy-line is-short" />
+          </div>
+          <SkeletonBlock className="skeleton-circle" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonPlayerRows({ count = 6 }) {
+  return (
+    <div className="skeleton-player-list">
+      {Array.from({ length: count }, (_, index) => (
+        <div className="skeleton-player-row" key={index}>
+          <SkeletonBlock className="skeleton-rank" />
+          <div className="skeleton-player-identity">
+            <SkeletonBlock className="skeleton-avatar" />
+            <div>
+              <SkeletonBlock className="skeleton-row-title" />
+              <SkeletonBlock className="skeleton-copy-line is-short" />
+            </div>
+          </div>
+          <div className="skeleton-player-best">
+            <SkeletonBlock className="skeleton-label" />
+            <SkeletonBlock className="skeleton-copy-line" />
+          </div>
+          <div className="skeleton-player-counts">
+            <SkeletonBlock className="skeleton-number is-small" />
+            <SkeletonBlock className="skeleton-number is-small" />
+          </div>
+          <SkeletonBlock className="skeleton-score" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecordRowsSkeleton({ count = 4 }) {
+  return (
+    <div
+      className="skeleton-record-list"
+      aria-busy="true"
+      aria-label="기록을 불러오는 중"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="skeleton-record-row" key={index}>
+          <SkeletonBlock className="skeleton-rank" />
+          <div className="skeleton-player-identity">
+            <SkeletonBlock className="skeleton-avatar" />
+            <div>
+              <SkeletonBlock className="skeleton-row-title" />
+              <SkeletonBlock className="skeleton-copy-line is-short" />
+            </div>
+          </div>
+          <SkeletonBlock className="skeleton-percent" />
+          <div className="skeleton-record-metrics">
+            {Array.from({ length: 4 }, (_, metricIndex) => (
+              <SkeletonBlock
+                className="skeleton-copy-line is-short"
+                key={metricIndex}
+              />
+            ))}
+          </div>
+          <SkeletonBlock className="skeleton-chip is-wide" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HomePageSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-home-page" label="홈 데이터를 불러오는 중">
+      <div className="skeleton-home-hero">
+        <div className="skeleton-home-copy">
+          <SkeletonBlock className="skeleton-button" />
+        </div>
+        <div className="skeleton-home-feature">
+          <SkeletonBlock className="skeleton-feature-card" />
+        </div>
+      </div>
+      <SkeletonStats />
+      <SkeletonHeading />
+      <div className="skeleton-feature-grid">
+        {Array.from({ length: 5 }, (_, index) => (
+          <SkeletonBlock className="skeleton-feature-tile" key={index} />
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+function ListPageSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-list-page" label="리스트를 불러오는 중">
+      <div className="skeleton-toolbar">
+        <SkeletonBlock className="skeleton-search" />
+        <SkeletonBlock className="skeleton-tabs" />
+        <SkeletonBlock className="skeleton-refresh" />
+      </div>
+      <SkeletonBlock className="skeleton-rating-panel" />
+      <div className="skeleton-table-head">
+        {Array.from({ length: 5 }, (_, index) => (
+          <SkeletonBlock className="skeleton-label" key={index} />
+        ))}
+      </div>
+      <SkeletonRankingRows />
+    </SkeletonScreen>
+  );
+}
+
+function PlayerLeaderboardSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-players-page" label="플레이어 랭킹을 불러오는 중">
+      <div className="skeleton-players-hero">
+        <SkeletonHeading />
+      </div>
+      <SkeletonStats />
+      <div className="skeleton-board">
+        <div className="skeleton-board-heading">
+          <SkeletonHeading />
+          <SkeletonBlock className="skeleton-refresh" />
+        </div>
+        <SkeletonPlayerRows />
+      </div>
+      <SkeletonBlock className="skeleton-score-scale" />
+    </SkeletonScreen>
+  );
+}
+
+function CsmpPageSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-csmp-page" label="CSMP 데이터를 불러오는 중">
+      <div className="skeleton-csmp-hero">
+        <SkeletonHeading />
+        <div className="skeleton-csmp-search">
+          <SkeletonBlock className="skeleton-label" />
+          <SkeletonBlock className="skeleton-search" />
+          <SkeletonBlock className="skeleton-copy-line" />
+        </div>
+        <div className="skeleton-csmp-progression">
+          {Array.from({ length: 5 }, (_, index) => (
+            <SkeletonBlock className="skeleton-csmp-step" key={index} />
+          ))}
+        </div>
+      </div>
+      <div className="skeleton-csmp-stage-grid">
+        {Array.from({ length: 5 }, (_, index) => (
+          <div className="skeleton-csmp-stage" key={index}>
+            <div className="skeleton-csmp-stage-head">
+              <SkeletonBlock className="skeleton-avatar" />
+              <SkeletonBlock className="skeleton-row-title" />
+              <SkeletonBlock className="skeleton-chip" />
+            </div>
+            {Array.from({ length: index === 0 || index === 3 ? 4 : 6 }, (_, rowIndex) => (
+              <SkeletonBlock
+                className="skeleton-csmp-map"
+                key={rowIndex}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+function RoulettePageSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-roulette-page" label="룰렛 데이터를 불러오는 중">
+      <div className="skeleton-roulette-heading">
+        <SkeletonHeading />
+        <SkeletonBlock className="skeleton-chip is-wide" />
+      </div>
+      <div className="skeleton-slot-machine">
+        <SkeletonBlock className="skeleton-slot-marquee" />
+        <div className="skeleton-slot-body">
+          <div className="skeleton-reels">
+            {Array.from({ length: 3 }, (_, index) => (
+              <SkeletonBlock className="skeleton-reel" key={index} />
+            ))}
+          </div>
+          <SkeletonBlock className="skeleton-lever" />
+        </div>
+      </div>
+      <div className="skeleton-roulette-result">
+        <SkeletonBlock className="skeleton-thumbnail" />
+        <div>
+          <SkeletonBlock className="skeleton-row-title" />
+          <SkeletonBlock className="skeleton-copy-line" />
+          <SkeletonBlock className="skeleton-chip-row-block" />
+        </div>
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+function MapDetailPageSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-detail-page" label="맵 상세 정보를 불러오는 중">
+      <SkeletonBlock className="skeleton-back-link" />
+      <SkeletonBlock className="skeleton-detail-banner" />
+      <div className="skeleton-detail-facts">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div className="skeleton-detail-fact" key={index}>
+            <SkeletonBlock className="skeleton-label" />
+            <SkeletonBlock className="skeleton-number is-small" />
+          </div>
+        ))}
+      </div>
+      <div className="skeleton-board">
+        <div className="skeleton-board-heading">
+          <SkeletonHeading />
+          <SkeletonBlock className="skeleton-refresh" />
+        </div>
+        <RecordRowsSkeleton count={4} />
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+function PlayerProfileSkeleton() {
+  return (
+    <SkeletonScreen className="skeleton-profile-page" label="플레이어 프로필을 불러오는 중">
+      <SkeletonBlock className="skeleton-back-link" />
+      <div className="skeleton-profile-hero">
+        <div className="skeleton-player-identity">
+          <SkeletonBlock className="skeleton-profile-avatar" />
+          <div>
+            <SkeletonBlock className="skeleton-kicker" />
+            <SkeletonBlock className="skeleton-profile-name" />
+            <SkeletonBlock className="skeleton-chip-row-block" />
+          </div>
+        </div>
+        <SkeletonBlock className="skeleton-profile-score" />
+      </div>
+      <SkeletonStats />
+      <SkeletonBlock className="skeleton-profile-best" />
+      <div className="skeleton-board">
+        <div className="skeleton-board-heading">
+          <SkeletonHeading />
+          <SkeletonBlock className="skeleton-chip is-wide" />
+        </div>
+        <RecordRowsSkeleton count={5} />
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+function RoutePageSkeleton({ route }) {
+  if (route === "/list") return <ListPageSkeleton />;
+  if (route === "/players") return <PlayerLeaderboardSkeleton />;
+  if (route.startsWith("/players/")) return <PlayerProfileSkeleton />;
+  if (route === "/csmp") return <CsmpPageSkeleton />;
+  if (route === "/roulette") return <RoulettePageSkeleton />;
+  if (route.startsWith("/maps/")) return <MapDetailPageSkeleton />;
+  return <HomePageSkeleton />;
+}
+
 function Home({ maps }) {
   const topMap = maps[0];
   const topFive = maps.filter((item) => item.rank >= 1 && item.rank <= 5);
@@ -424,7 +747,8 @@ function CsmpRankIcon({ rank, showcase = false }) {
     () =>
       rank
         ? ["png", "jpg", "jpeg"].map(
-            (extension) => `./images/csmp/${rank.name}.${extension}`,
+            (extension) =>
+              `./images/csmp/${rank.iconName || rank.name}.${extension}`,
           )
         : [],
     [rank],
@@ -1839,10 +2163,7 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
       </div>
 
       {loading && sortedRecords.length === 0 ? (
-        <div className="record-state">
-          <span className="record-loader" aria-hidden="true" />
-          <p>등록된 기록을 불러오는 중입니다.</p>
-        </div>
+        <RecordRowsSkeleton count={4} />
       ) : error ? (
         <div className="record-state is-error">
           <strong>기록을 불러오지 못했습니다.</strong>
@@ -2002,6 +2323,10 @@ function CsmpPage({ maps }) {
     event.preventDefault();
     setSubmittedQuery(playerQuery.trim());
   };
+
+  if (playersLoading && players.length === 0) {
+    return <CsmpPageSkeleton />;
+  }
 
   return (
     <section className="csmp-page">
@@ -2168,6 +2493,10 @@ function PlayerLeaderboardPage() {
     [players],
   );
 
+  if (loading && players.length === 0) {
+    return <PlayerLeaderboardSkeleton />;
+  }
+
   return (
     <section className="players-page">
       <div className="players-hero">
@@ -2215,10 +2544,7 @@ function PlayerLeaderboardPage() {
         </div>
 
         {loading && players.length === 0 ? (
-          <div className="record-state">
-            <span className="record-loader" aria-hidden="true" />
-            <p>플레이어 점수를 계산하는 중입니다.</p>
-          </div>
+          <SkeletonPlayerRows />
         ) : error ? (
           <div className="record-state is-error">
             <strong>점수를 불러오지 못했습니다.</strong>
@@ -2326,15 +2652,7 @@ function PlayerProfilePage({ identityType, identityValue }) {
   }, [player]);
 
   if (loading && !player) {
-    return (
-      <section className="player-profile-page">
-        <a className="player-profile-back" href="#/players">← 종합 순위로 돌아가기</a>
-        <div className="record-state player-profile-state">
-          <span className="record-loader" aria-hidden="true" />
-          <p>플레이어 프로필을 불러오는 중입니다.</p>
-        </div>
-      </section>
-    );
+    return <PlayerProfileSkeleton />;
   }
 
   if (error) {
@@ -2618,7 +2936,7 @@ function App() {
   }, [route, queryString]);
 
   let page = null;
-  if (loading) page = <div className="loading-state"><span /><p>리스트 데이터를 불러오는 중</p></div>;
+  if (loading) page = <RoutePageSkeleton route={route} />;
   else if (error) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
   else if (route === "/") page = <Home maps={maps} />;
   else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
