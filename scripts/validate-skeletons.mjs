@@ -35,6 +35,11 @@ assert.ok(main.includes("<SkeletonPlayerRows />"));
 assert.ok(main.includes("<ScoreScaleCard />"));
 assert.ok(main.includes('className="skeleton-rating-count"'));
 assert.ok(main.includes('className="skeleton-csmp-map-rank"'));
+assert.match(
+  main,
+  /className="ranking-map-title-line">[\s\S]*?<CsmpMapBadge stage=\{csmpStage\} \/>/,
+);
+assert.ok(styles.includes(".ranking-map-title-line"));
 assert.ok(styles.includes("@keyframes skeletonSweep"));
 assert.ok(styles.includes("@media (max-width: 720px)"));
 assert.ok(styles.includes("Section-only loading states"));
