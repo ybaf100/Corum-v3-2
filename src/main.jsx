@@ -1,6 +1,7 @@
 import React, { useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { SITE_TITLE, SITE_VERSION } from "./config";
+import { CSMP_STAGES, normalizeCsmpMapTitle } from "./csmp";
 import { useMaps } from "./useMaps";
 import { useRecords } from "./useRecords";
 import { useScores } from "./useScores";
@@ -94,11 +95,13 @@ const NAV_ITEMS = [
   { key: "home", label: "홈", href: "#/" },
   { key: "list", label: "리스트", href: "#/list" },
   { key: "players", label: "점수", href: "#/players" },
+  { key: "csmp", label: "CSMP", href: "#/csmp" },
   { key: "roulette", label: "룰렛", href: "#/roulette" },
 ];
 
 function getActiveNavKey(route) {
   if (route === "/roulette") return "roulette";
+  if (route === "/csmp") return "csmp";
   if (route === "/players" || route.startsWith("/players/")) return "players";
   if (route === "/list" || route.startsWith("/maps/")) return "list";
   return "home";
@@ -410,7 +413,7 @@ function RankingThumbnail({ item }) {
   );
 }
 
-function CsmpRankIcon({ rank }) {
+function CsmpRankIcon({ rank, showcase = false }) {
   const sources = useMemo(
     () =>
       rank
@@ -432,7 +435,7 @@ function CsmpRankIcon({ rank }) {
 
   return (
     <span
-      className={`csmp-rank-icon csmp-${rank.key}`}
+      className={`csmp-rank-icon csmp-${rank.key}${showcase ? " is-showcase" : ""}`}
       role="img"
       aria-label={`CSMP ${rank.name} 랭크`}
       title={`CSMP ${rank.name}`}
@@ -1913,6 +1916,108 @@ function ScoreScaleCard() {
   );
 }
 
+function CsmpPage({ maps }) {
+  const mapsByTitle = useMemo(
+    () =>
+      new Map(
+        maps.map((map) => [normalizeCsmpMapTitle(map.title), map]),
+      ),
+    [maps],
+  );
+
+  return (
+    <section className="csmp-page">
+      <header className="csmp-hero">
+        <div>
+          <p className="section-kicker">CORUM SIGNATURE MAP PROGRESSION</p>
+          <h1>CSMP</h1>
+          <p>
+            지정된 시그니처 맵의 100% 기록으로 랭크를 올리는 순차 진행
+            시스템입니다. 이전 랭크를 달성해야 다음 단계가 해금됩니다.
+          </p>
+        </div>
+
+        <div className="csmp-progression" aria-label="CSMP 랭크 진행 순서">
+          {CSMP_STAGES.map((stage, index) => (
+            <React.Fragment key={stage.key}>
+              <div className={`csmp-progression-step csmp-${stage.key}`}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{stage.name}</strong>
+              </div>
+              {index < CSMP_STAGES.length - 1 && (
+                <ArrowIcon />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </header>
+
+      <div className="csmp-rule-strip">
+        <p>
+          <span>RECORD</span>
+          <strong>100% CLEAR</strong>
+        </p>
+        <p>
+          <span>ORDER</span>
+          <strong>SEQUENTIAL</strong>
+        </p>
+        <p>
+          <span>STATUS</span>
+          <strong>NOT REJECTED</strong>
+        </p>
+      </div>
+
+      <div className="csmp-stage-grid">
+        {CSMP_STAGES.map((stage, index) => {
+          const requiresAll = stage.required === stage.maps.length;
+
+          return (
+            <article
+              className={`csmp-stage-card csmp-${stage.key}`}
+              key={stage.key}
+            >
+              <div className="csmp-stage-heading">
+                <CsmpRankIcon rank={stage} showcase />
+                <div>
+                  <span>STEP {String(index + 1).padStart(2, "0")}</span>
+                  <h2>{stage.name}</h2>
+                </div>
+                <strong>
+                  {requiresAll
+                    ? `ALL ${stage.maps.length}`
+                    : `${stage.required} OF ${stage.maps.length}`}
+                </strong>
+              </div>
+
+              <ol className="csmp-map-list">
+                {stage.maps.map((title) => {
+                  const map = mapsByTitle.get(normalizeCsmpMapTitle(title));
+                  const content = (
+                    <>
+                      <span>{title}</span>
+                      {map && <small>#{map.rank}</small>}
+                    </>
+                  );
+
+                  return (
+                    <li key={title}>
+                      {map ? (
+                        <a href={`#/maps/${getMapKey(map)}`}>{content}</a>
+                      ) : (
+                        <div>{content}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PlayerLeaderboardPage() {
   const { players, loading, error, generatedAt, reload } = useScores();
   const totalRecords = useMemo(
@@ -2379,6 +2484,7 @@ function App() {
   else if (route === "/") page = <Home maps={maps} />;
   else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
   else if (route === "/players") page = <PlayerLeaderboardPage />;
+  else if (route === "/csmp") page = <CsmpPage maps={maps} />;
   else if (playerMatch) {
     page = (
       <PlayerProfilePage
