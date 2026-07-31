@@ -40,6 +40,8 @@ assert.match(
   /className="ranking-map-title-line">[\s\S]*?<CsmpMapBadge stage=\{csmpStage\} \/>/,
 );
 assert.ok(styles.includes(".ranking-map-title-line"));
+assert.ok(main.includes('className="ranking-minimum-record"'));
+assert.ok(styles.includes(".ranking-minimum-record"));
 assert.ok(styles.includes("@keyframes skeletonSweep"));
 assert.ok(styles.includes("@media (max-width: 720px)"));
 assert.ok(styles.includes("Section-only loading states"));
