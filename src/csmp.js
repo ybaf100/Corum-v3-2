@@ -68,7 +68,17 @@ export function normalizeCsmpMapTitle(value) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-function getCompletedMapKeys(records) {
+const CSMP_STAGE_BY_MAP = new Map(
+  CSMP_STAGES.flatMap((stage) =>
+    stage.maps.map((title) => [normalizeCsmpMapTitle(title), stage]),
+  ),
+);
+
+export function getCsmpStageForMapTitle(value) {
+  return CSMP_STAGE_BY_MAP.get(normalizeCsmpMapTitle(value)) || null;
+}
+
+export function getCompletedCsmpMapKeys(records) {
   const completed = new Set();
 
   for (const record of records || []) {
@@ -83,7 +93,7 @@ function getCompletedMapKeys(records) {
 }
 
 export function getCsmpProgress(records) {
-  const completedMapKeys = getCompletedMapKeys(records);
+  const completedMapKeys = getCompletedCsmpMapKeys(records);
   const stages = CSMP_STAGES.map((stage, index) => {
     const completedMaps = stage.maps.filter((title) =>
       completedMapKeys.has(normalizeCsmpMapTitle(title)),

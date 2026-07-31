@@ -1,7 +1,12 @@
 import React, { useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { SITE_TITLE, SITE_VERSION } from "./config";
-import { CSMP_STAGES, normalizeCsmpMapTitle } from "./csmp";
+import {
+  CSMP_STAGES,
+  getCompletedCsmpMapKeys,
+  getCsmpStageForMapTitle,
+  normalizeCsmpMapTitle,
+} from "./csmp";
 import { useMaps } from "./useMaps";
 import { useRecords } from "./useRecords";
 import { useScores } from "./useScores";
@@ -451,6 +456,16 @@ function CsmpRankIcon({ rank, showcase = false }) {
       ) : (
         <span aria-hidden="true">{rank.name.charAt(0)}</span>
       )}
+    </span>
+  );
+}
+
+function CsmpMapBadge({ stage }) {
+  if (!stage) return null;
+
+  return (
+    <span className={`csmp-map-badge csmp-${stage.key}`}>
+      CSMP {stage.name}
     </span>
   );
 }
@@ -1503,6 +1518,8 @@ function ListPage({ maps, initialQuery = "" }) {
 }
 
 function FeaturedMapCard({ item }) {
+  const csmpStage = getCsmpStageForMapTitle(item.title);
+
   return (
     <a className={`featured-map-card featured-rank-${item.rank} ${getRankBorderClass(item.rank)}`} href={`#/maps/${getMapKey(item)}`}>
       <ThumbnailBackground item={item} />
@@ -1518,6 +1535,7 @@ function FeaturedMapCard({ item }) {
         <div className="badge-row">
           <RatingBadge rating={item.rating} compact />
           <LengthBadge length={item.length} compact />
+          <CsmpMapBadge stage={csmpStage} />
         </div>
         <h2>{item.title}</h2>
         <p>by {item.creator || "Unknown"} · verified by {item.verifier || "Unknown"}</p>
@@ -1564,6 +1582,7 @@ function HighlightText({ text, query }) {
 
 function RankingRow({ item, query }) {
   const baseScore = getCorumBaseScore(item.rank);
+  const csmpStage = getCsmpStageForMapTitle(item.title);
 
   return (
     <a
@@ -1584,6 +1603,7 @@ function RankingRow({ item, query }) {
         <div className="badge-row">
           <RatingBadge rating={item.rating} compact query={query} />
           <LengthBadge length={item.length} compact query={query} />
+          <CsmpMapBadge stage={csmpStage} />
           <span className="neutral-badge">
             ID <HighlightText text={item.levelId || "-"} query={query} />
           </span>
@@ -1917,6 +1937,13 @@ function ScoreScaleCard() {
 }
 
 function CsmpPage({ maps }) {
+  const {
+    players,
+    loading: playersLoading,
+    error: playersError,
+  } = useScores();
+  const [playerQuery, setPlayerQuery] = React.useState("");
+  const [submittedQuery, setSubmittedQuery] = React.useState("");
   const mapsByTitle = useMemo(
     () =>
       new Map(
@@ -1924,17 +1951,103 @@ function CsmpPage({ maps }) {
       ),
     [maps],
   );
+  const selectedPlayer = useMemo(() => {
+    const normalizedQuery = submittedQuery.trim().toLocaleLowerCase();
+    if (!normalizedQuery) return null;
+
+    return (
+      players.find(
+        (player) => player.player.trim().toLocaleLowerCase() === normalizedQuery,
+      ) || null
+    );
+  }, [players, submittedQuery]);
+  const selectedPlayerRecords = useMemo(() => {
+    if (!selectedPlayer) return [];
+    if (selectedPlayer.records.length > 0) return selectedPlayer.records;
+    return selectedPlayer.bestRecord ? [selectedPlayer.bestRecord] : [];
+  }, [selectedPlayer]);
+  const completedMapKeys = useMemo(
+    () => getCompletedCsmpMapKeys(selectedPlayerRecords),
+    [selectedPlayerRecords],
+  );
+  const totalCsmpMaps = useMemo(
+    () => CSMP_STAGES.reduce((total, stage) => total + stage.maps.length, 0),
+    [],
+  );
+  const playerNotFound =
+    Boolean(submittedQuery) &&
+    !playersLoading &&
+    !playersError &&
+    !selectedPlayer;
+
+  const submitPlayerSearch = (event) => {
+    event.preventDefault();
+    setSubmittedQuery(playerQuery.trim());
+  };
 
   return (
     <section className="csmp-page">
       <header className="csmp-hero">
-        <div>
-          <p className="section-kicker">CORUM SIGNATURE MAP PROGRESSION</p>
-          <h1>CSMP</h1>
-          <p>
-            지정된 시그니처 맵의 100% 기록으로 랭크를 올리는 순차 진행
-            시스템입니다. 이전 랭크를 달성해야 다음 단계가 해금됩니다.
-          </p>
+        <div className="csmp-hero-top">
+          <div className="csmp-hero-copy">
+            <p className="section-kicker">CORUM SIGNATURE MAP PROGRESSION</p>
+            <h1>CSMP</h1>
+            <p>
+              지정된 시그니처 맵의 100% 기록으로 랭크를 올리는 순차 진행
+              시스템입니다. 이전 랭크를 달성해야 다음 단계가 해금됩니다.
+            </p>
+          </div>
+
+          <form className="csmp-player-search" onSubmit={submitPlayerSearch}>
+            <label htmlFor="csmp-player-name">PLAYER PROGRESS</label>
+            <div className="csmp-player-search-control">
+              <SearchIcon />
+              <input
+                id="csmp-player-name"
+                type="search"
+                value={playerQuery}
+                onChange={(event) => setPlayerQuery(event.target.value)}
+                placeholder="Geometry Dash 닉네임"
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                disabled={playersLoading || !playerQuery.trim()}
+              >
+                {playersLoading ? "LOADING" : "SEARCH"}
+              </button>
+            </div>
+
+            {playersError ? (
+              <p className="csmp-search-message is-error">{playersError}</p>
+            ) : playerNotFound ? (
+              <p className="csmp-search-message is-error">
+                “{submittedQuery}” 플레이어를 찾을 수 없습니다.
+              </p>
+            ) : selectedPlayer ? (
+              <div className="csmp-player-result">
+                <div>
+                  <span>PLAYER FOUND</span>
+                  <strong>{selectedPlayer.player}</strong>
+                </div>
+                <p>
+                  <strong>
+                    CSMP {selectedPlayer.csmp.current?.name || "Unranked"}
+                  </strong>
+                  <span>{completedMapKeys.size}/{totalCsmpMaps} CLEARED</span>
+                </p>
+                <small>
+                  {selectedPlayer.csmp.next
+                    ? `NEXT ${selectedPlayer.csmp.next.name.toUpperCase()} · ${selectedPlayer.csmp.next.completed}/${selectedPlayer.csmp.next.required}`
+                    : "ALL RANKS COMPLETED"}
+                </small>
+              </div>
+            ) : (
+              <p className="csmp-search-message">
+                닉네임을 검색하면 랭크별 클리어 현황을 표시합니다.
+              </p>
+            )}
+          </form>
         </div>
 
         <div className="csmp-progression" aria-label="CSMP 랭크 진행 순서">
@@ -1952,24 +2065,12 @@ function CsmpPage({ maps }) {
         </div>
       </header>
 
-      <div className="csmp-rule-strip">
-        <p>
-          <span>RECORD</span>
-          <strong>100% CLEAR</strong>
-        </p>
-        <p>
-          <span>ORDER</span>
-          <strong>SEQUENTIAL</strong>
-        </p>
-        <p>
-          <span>STATUS</span>
-          <strong>NOT REJECTED</strong>
-        </p>
-      </div>
-
       <div className="csmp-stage-grid">
         {CSMP_STAGES.map((stage, index) => {
           const requiresAll = stage.required === stage.maps.length;
+          const playerStage = selectedPlayer?.csmp.stages.find(
+            (progress) => progress.key === stage.key,
+          );
 
           return (
             <article
@@ -1983,24 +2084,44 @@ function CsmpPage({ maps }) {
                   <h2>{stage.name}</h2>
                 </div>
                 <strong>
-                  {requiresAll
-                    ? `ALL ${stage.maps.length}`
-                    : `${stage.required} OF ${stage.maps.length}`}
+                  {selectedPlayer
+                    ? `${playerStage?.completed || 0}/${stage.maps.length} CLEAR`
+                    : requiresAll
+                      ? `ALL ${stage.maps.length}`
+                      : `${stage.required} OF ${stage.maps.length}`}
                 </strong>
               </div>
 
               <ol className="csmp-map-list">
                 {stage.maps.map((title) => {
-                  const map = mapsByTitle.get(normalizeCsmpMapTitle(title));
+                  const titleKey = normalizeCsmpMapTitle(title);
+                  const map = mapsByTitle.get(titleKey);
+                  const isCleared = selectedPlayer
+                    ? completedMapKeys.has(titleKey)
+                    : null;
                   const content = (
                     <>
-                      <span>{title}</span>
-                      {map && <small>#{map.rank}</small>}
+                      <span className="csmp-map-title">{title}</span>
+                      <div className="csmp-map-meta">
+                        {map && <small>#{map.rank}</small>}
+                        {selectedPlayer && (
+                          <em>{isCleared ? "CLEARED" : "UNCLEARED"}</em>
+                        )}
+                      </div>
                     </>
                   );
 
                   return (
-                    <li key={title}>
+                    <li
+                      className={
+                        selectedPlayer
+                          ? isCleared
+                            ? "is-cleared"
+                            : "is-uncleared"
+                          : ""
+                      }
+                      key={title}
+                    >
                       {map ? (
                         <a href={`#/maps/${getMapKey(map)}`}>{content}</a>
                       ) : (
