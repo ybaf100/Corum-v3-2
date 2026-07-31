@@ -6133,7 +6133,7 @@ svg { width: 1em; height: 1em; display: block; }
   min-width: 0;
   overflow: hidden;
   border-radius: 10px;
-  background: var(--skeleton-base);
+  background: var(--skeleton-base, #e2e2dc);
 }
 
 .skeleton-block::after {
@@ -6143,7 +6143,7 @@ svg { width: 1em; height: 1em; display: block; }
   background: linear-gradient(
     100deg,
     transparent 20%,
-    var(--skeleton-highlight) 48%,
+    var(--skeleton-highlight, rgba(255, 255, 255, .78)) 48%,
     transparent 76%
   );
   transform: translateX(-105%);
@@ -6568,6 +6568,87 @@ svg { width: 1em; height: 1em; display: block; }
   min-height: 130px;
   border: 1px solid var(--line-dark);
   border-radius: 22px;
+}
+
+/* Section-only loading states: static copy and controls remain visible. */
+.hero-feature.is-loading {
+  min-height: 520px;
+  --skeleton-base: rgba(255, 255, 255, .12);
+  --skeleton-highlight: rgba(255, 255, 255, .26);
+}
+
+.hero-feature.is-loading .skeleton-feature-card {
+  min-height: 520px;
+}
+
+.home-stats-skeleton {
+  margin: 18px 0 90px;
+}
+
+.home-feature-skeleton {
+  width: 100%;
+}
+
+.home-empty-state {
+  min-height: 250px;
+}
+
+.skeleton-rating-count {
+  width: 68px;
+  height: 16px;
+  --skeleton-base: rgba(255, 255, 255, .14);
+  --skeleton-highlight: rgba(255, 255, 255, .28);
+}
+
+.roulette-map-count.is-loading {
+  min-width: 86px;
+}
+
+.skeleton-roulette-count {
+  width: 58px;
+  height: 12px;
+}
+
+.roulette-data-skeleton {
+  width: 100%;
+}
+
+.players-summary-skeleton {
+  margin-bottom: 18px;
+}
+
+.csmp-search-loading {
+  display: block;
+  padding-top: 3px;
+  --skeleton-base: rgba(255, 255, 255, .12);
+  --skeleton-highlight: rgba(255, 255, 255, .25);
+}
+
+.csmp-search-loading-copy {
+  display: grid;
+  gap: 7px;
+}
+
+.skeleton-csmp-search-line {
+  width: min(100%, 250px);
+  height: 10px;
+}
+
+.skeleton-csmp-map-rank {
+  width: 28px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.skeleton-detail-page,
+.skeleton-profile-page {
+  width: 100%;
+  display: grid;
+  gap: 18px;
+}
+
+.skeleton-detail-page {
+  gap: 0;
 }
 
 @media (max-width: 980px) {

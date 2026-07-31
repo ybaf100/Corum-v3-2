@@ -49,6 +49,9 @@
     #ff8800 46%, #ff0000 55%, #8a0000 62%, #1a0000 68%, #0a031f 75%,
     #351c75 86%, #6a2bff 100%
   );
+
+  --skeleton-base: #1b1e2a;
+  --skeleton-highlight: rgba(255, 255, 255, .11);
 }
 
 * { box-sizing: border-box; }

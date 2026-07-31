@@ -259,9 +259,13 @@ function SkeletonHeading() {
   );
 }
 
-function SkeletonStats() {
+function SkeletonStats({ className = "", label = "통계를 불러오는 중" }) {
   return (
-    <div className="skeleton-stats">
+    <div
+      className={`skeleton-stats${className ? ` ${className}` : ""}`}
+      aria-busy="true"
+      aria-label={label}
+    >
       {Array.from({ length: 4 }, (_, index) => (
         <div className="skeleton-stat" key={index}>
           <SkeletonBlock className="skeleton-label" />
@@ -490,8 +494,12 @@ function RoulettePageSkeleton() {
 
 function MapDetailPageSkeleton() {
   return (
-    <SkeletonScreen className="skeleton-detail-page" label="맵 상세 정보를 불러오는 중">
-      <SkeletonBlock className="skeleton-back-link" />
+    <section
+      className="detail-page detail-page-banner skeleton-detail-page"
+      aria-busy="true"
+      aria-label="맵 상세 정보를 불러오는 중"
+    >
+      <a className="back-link" href="#/list">← 전체 리스트</a>
       <SkeletonBlock className="skeleton-detail-banner" />
       <div className="skeleton-detail-facts">
         {Array.from({ length: 6 }, (_, index) => (
@@ -508,14 +516,21 @@ function MapDetailPageSkeleton() {
         </div>
         <RecordRowsSkeleton count={4} />
       </div>
-    </SkeletonScreen>
+    </section>
   );
 }
 
 function PlayerProfileSkeleton() {
   return (
-    <SkeletonScreen className="skeleton-profile-page" label="플레이어 프로필을 불러오는 중">
-      <SkeletonBlock className="skeleton-back-link" />
+    <section
+      className="player-profile-page skeleton-profile-page"
+      aria-busy="true"
+      aria-label="플레이어 프로필을 불러오는 중"
+    >
+      <a className="player-profile-back" href="#/players">
+        <span aria-hidden="true">←</span>
+        종합 순위로 돌아가기
+      </a>
       <div className="skeleton-profile-hero">
         <div className="skeleton-player-identity">
           <SkeletonBlock className="skeleton-profile-avatar" />
@@ -536,7 +551,7 @@ function PlayerProfileSkeleton() {
         </div>
         <RecordRowsSkeleton count={5} />
       </div>
-    </SkeletonScreen>
+    </section>
   );
 }
 
@@ -550,7 +565,7 @@ function RoutePageSkeleton({ route }) {
   return <HomePageSkeleton />;
 }
 
-function Home({ maps }) {
+function Home({ maps, loading = false }) {
   const topMap = maps[0];
   const topFive = maps.filter((item) => item.rank >= 1 && item.rank <= 5);
   const mainCount = maps.filter((item) => item.rank >= 1 && item.rank <= 10).length;
@@ -568,8 +583,13 @@ function Home({ maps }) {
           </div>
         </div>
 
-        <div className="hero-feature">
-          {topMap ? (
+        <div
+          className={`hero-feature${loading ? " is-loading" : ""}`}
+          aria-busy={loading || undefined}
+        >
+          {loading ? (
+            <SkeletonBlock className="skeleton-feature-card" />
+          ) : topMap ? (
             <a className={`hero-map-card ${getRankBorderClass(topMap.rank)}`} href={`#/maps/${getMapKey(topMap)}`}>
               <ThumbnailBackground item={topMap} eager />
               <div className="hero-map-overlay" />
@@ -597,25 +617,40 @@ function Home({ maps }) {
         </div>
       </section>
 
-      <section className="stats-rail" aria-label="리스트 통계">
-        <StatItem label="TOTAL MAPS" value={maps.length} suffix="maps" />
-        <StatItem label="MAIN" value={mainCount} suffix="1–10" />
-        <StatItem label="EXTENDED" value={extendedCount} suffix="11–25" />
-        <StatItem label="LEGACY" value={legacyCount} suffix="26+" />
-      </section>
+      {loading ? (
+        <SkeletonStats className="home-stats-skeleton" label="리스트 통계를 불러오는 중" />
+      ) : (
+        <section className="stats-rail" aria-label="리스트 통계">
+          <StatItem label="TOTAL MAPS" value={maps.length} suffix="maps" />
+          <StatItem label="MAIN" value={mainCount} suffix="1–10" />
+          <StatItem label="EXTENDED" value={extendedCount} suffix="11–25" />
+          <StatItem label="LEGACY" value={legacyCount} suffix="26+" />
+        </section>
+      )}
 
-      {topFive.length > 0 && (
-        <section className="home-top-section">
-          <SectionHeading
-            kicker="FEATURED RANKING"
-            title="현재 TOP 5"
-            action={<a className="inline-link" href="#/list">전체 순위 <ArrowIcon /></a>}
-          />
+      <section className="home-top-section">
+        <SectionHeading
+          kicker="FEATURED RANKING"
+          title="현재 TOP 5"
+          action={<a className="inline-link" href="#/list">전체 순위 <ArrowIcon /></a>}
+        />
+        {loading ? (
+          <div className="skeleton-feature-grid home-feature-skeleton" aria-busy="true" aria-label="TOP 5를 불러오는 중">
+            {Array.from({ length: 5 }, (_, index) => (
+              <SkeletonBlock className="skeleton-feature-tile" key={index} />
+            ))}
+          </div>
+        ) : topFive.length > 0 ? (
           <div className="home-top-grid">
             {topFive.map((item) => <TopPreviewCard key={getMapKey(item)} item={item} />)}
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="empty-state home-empty-state">
+            <span>NO MAPS</span>
+            <h2>등록된 맵이 없습니다.</h2>
+          </div>
+        )}
+      </section>
     </>
   );
 }
@@ -971,7 +1006,7 @@ function FilterTabs({ value, onChange }) {
   );
 }
 
-function RatingRangeFilter({ value, onChange, resultCount, totalCount }) {
+function RatingRangeFilter({ value, onChange, resultCount, totalCount, loading = false }) {
   const [firstIndex, secondIndex] = value;
   const [activeHandle, setActiveHandle] = React.useState("second");
 
@@ -1009,7 +1044,11 @@ function RatingRangeFilter({ value, onChange, resultCount, totalCount }) {
 
         <div className="rating-filter-actions">
           <span className="rating-result-count">
-            <strong>{resultCount}</strong> / {totalCount}
+            {loading ? (
+              <SkeletonBlock className="skeleton-rating-count" />
+            ) : (
+              <><strong>{resultCount}</strong> / {totalCount}</>
+            )}
           </span>
           <button type="button" onClick={resetRange} disabled={isDefault}>
             초기화
@@ -1163,7 +1202,7 @@ function RouletteMapCard({ item, preview = false }) {
   );
 }
 
-function RoulettePage({ maps }) {
+function RoulettePage({ maps, loading = false }) {
   const candidates = useMemo(() => getRouletteCandidates(maps), [maps]);
   const [digits, setDigits] = React.useState(["0", "0", "0"]);
   const [stoppedReels, setStoppedReels] = React.useState([true, true, true]);
@@ -1630,7 +1669,9 @@ function RoulettePage({ maps }) {
           <h1>데몬 리스트 슬롯머신</h1>
           <p>등록된 맵 가운데 하나를 무작위로 추첨합니다.</p>
         </div>
-        <span className="roulette-map-count">{candidates.length} MAPS</span>
+        <span className={`roulette-map-count${loading ? " is-loading" : ""}`}>
+          {loading ? <SkeletonBlock className="skeleton-roulette-count" /> : `${candidates.length} MAPS`}
+        </span>
       </header>
 
       <article
@@ -1694,7 +1735,7 @@ function RoulettePage({ maps }) {
           <button
             className={`slot-lever ${leverPull > 0.04 ? "is-dragging" : ""}`}
             type="button"
-            disabled={spinning || candidates.length === 0}
+            disabled={loading || spinning || candidates.length === 0}
             onPointerDown={beginLeverPull}
             onPointerMove={moveLeverPull}
             onPointerUp={finishLeverPull}
@@ -1702,7 +1743,9 @@ function RoulettePage({ maps }) {
             onLostPointerCapture={cancelLeverPull}
             onKeyDown={handleLeverKey}
             aria-label={
-              spinning
+              loading
+                ? "맵 데이터를 불러오는 중"
+                : spinning
                 ? "슬롯머신 추첨 중"
                 : "레버 손잡이를 아래로 당겨 맵 추첨"
             }
@@ -1728,7 +1771,16 @@ function RoulettePage({ maps }) {
       </article>
 
       <section className="roulette-result-section" aria-live="polite">
-        {result ? (
+        {loading ? (
+          <div className="skeleton-roulette-result roulette-data-skeleton" aria-busy="true" aria-label="룰렛 맵을 불러오는 중">
+            <SkeletonBlock className="skeleton-thumbnail" />
+            <div>
+              <SkeletonBlock className="skeleton-row-title" />
+              <SkeletonBlock className="skeleton-copy-line" />
+              <SkeletonBlock className="skeleton-chip-row-block" />
+            </div>
+          </div>
+        ) : result ? (
           <RouletteMapCard item={result} />
         ) : livePreviewActive ? (
           livePreviewMap ? (
@@ -1752,7 +1804,7 @@ function RoulettePage({ maps }) {
   );
 }
 
-function ListPage({ maps, initialQuery = "" }) {
+function ListPage({ maps, initialQuery = "", loading = false }) {
   const [query, setQuery] = React.useState(initialQuery);
   const [filter, setFilter] = React.useState("all");
   const [ratingRange, setRatingRange] = React.useState([0, RATING_RANGE_MAX]);
@@ -1813,9 +1865,10 @@ function ListPage({ maps, initialQuery = "" }) {
         onChange={setRatingRange}
         resultCount={filteredMaps.length}
         totalCount={maps.length}
+        loading={loading}
       />
 
-      {filteredMaps.length > 0 && (
+      {(loading || filteredMaps.length > 0) && (
         <section className="ranking-section">
           <div className="ranking-table-head" aria-hidden="true">
             <span>RANK</span>
@@ -1824,15 +1877,19 @@ function ListPage({ maps, initialQuery = "" }) {
             <span>CREATOR / VERIFIER</span>
             <span>DETAIL</span>
           </div>
-          <div className="ranking-list">
-            {filteredMaps.map((item) => (
-              <RankingRow key={getMapKey(item)} item={item} query={query} />
-            ))}
-          </div>
+          {loading ? (
+            <SkeletonRankingRows />
+          ) : (
+            <div className="ranking-list">
+              {filteredMaps.map((item) => (
+                <RankingRow key={getMapKey(item)} item={item} query={query} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      {filteredMaps.length === 0 && (
+      {!loading && filteredMaps.length === 0 && (
         <div className="empty-state">
           <span>NO RESULTS</span>
           <h2>검색 결과가 없습니다.</h2>
@@ -1957,7 +2014,7 @@ function RankingRow({ item, query }) {
   );
 }
 
-function MapDetailPage({ maps, mapKey }) {
+function MapDetailPage({ maps, mapKey, loading = false }) {
   const decodedKey = decodeURIComponent(mapKey || "");
   const item = maps.find(
     (map) =>
@@ -1966,6 +2023,8 @@ function MapDetailPage({ maps, mapKey }) {
       String(map.orderId) === decodedKey ||
       map.title === decodedKey,
   );
+
+  if (loading) return <MapDetailPageSkeleton />;
 
   if (!item) {
     return (
@@ -2275,7 +2334,7 @@ function ScoreScaleCard() {
   );
 }
 
-function CsmpPage({ maps }) {
+function CsmpPage({ maps, mapsLoading = false }) {
   const {
     players,
     loading: playersLoading,
@@ -2324,10 +2383,6 @@ function CsmpPage({ maps }) {
     setSubmittedQuery(playerQuery.trim());
   };
 
-  if (playersLoading && players.length === 0) {
-    return <CsmpPageSkeleton />;
-  }
-
   return (
     <section className="csmp-page">
       <header className="csmp-hero">
@@ -2361,7 +2416,20 @@ function CsmpPage({ maps }) {
               </button>
             </div>
 
-            {playersError ? (
+            {playersLoading && players.length === 0 ? (
+              <div className="csmp-search-loading-copy">
+                <p className="csmp-search-message">
+                  닉네임을 검색하면 랭크별 클리어 현황을 표시합니다.
+                </p>
+                <span
+                  className="csmp-search-loading"
+                  aria-busy="true"
+                  aria-label="플레이어 데이터를 불러오는 중"
+                >
+                  <SkeletonBlock className="skeleton-csmp-search-line" />
+                </span>
+              </div>
+            ) : playersError ? (
               <p className="csmp-search-message is-error">{playersError}</p>
             ) : playerNotFound ? (
               <p className="csmp-search-message is-error">
@@ -2446,7 +2514,11 @@ function CsmpPage({ maps }) {
                     <>
                       <span className="csmp-map-title">{title}</span>
                       <div className="csmp-map-meta">
-                        {map && <small>#{map.rank}</small>}
+                        {mapsLoading ? (
+                          <SkeletonBlock className="skeleton-csmp-map-rank" />
+                        ) : map ? (
+                          <small>#{map.rank}</small>
+                        ) : null}
                         {selectedPlayer && (
                           <em>{isCleared ? "CLEARED" : "UNCLEARED"}</em>
                         )}
@@ -2493,10 +2565,6 @@ function PlayerLeaderboardPage() {
     [players],
   );
 
-  if (loading && players.length === 0) {
-    return <PlayerLeaderboardSkeleton />;
-  }
-
   return (
     <section className="players-page">
       <div className="players-hero">
@@ -2510,16 +2578,20 @@ function PlayerLeaderboardPage() {
         </div>
       </div>
 
-      <div className="players-summary" aria-label="플레이어 점수 통계">
-        <StatItem label="RANKED PLAYERS" value={players.length} suffix="players" />
-        <StatItem label="SCORING RECORDS" value={totalRecords} suffix="best runs" />
-        <StatItem label="FULL CLEARS" value={totalCompletions} suffix="100%" />
-        <StatItem
-          label="TOP SCORE"
-          value={players.length > 0 ? formatCorumScore(players[0].score) : "0.00"}
-          suffix="pts"
-        />
-      </div>
+      {loading && players.length === 0 ? (
+        <SkeletonStats className="players-summary-skeleton" label="플레이어 점수 통계를 불러오는 중" />
+      ) : (
+        <div className="players-summary" aria-label="플레이어 점수 통계">
+          <StatItem label="RANKED PLAYERS" value={players.length} suffix="players" />
+          <StatItem label="SCORING RECORDS" value={totalRecords} suffix="best runs" />
+          <StatItem label="FULL CLEARS" value={totalCompletions} suffix="100%" />
+          <StatItem
+            label="TOP SCORE"
+            value={players.length > 0 ? formatCorumScore(players[0].score) : "0.00"}
+            suffix="pts"
+          />
+        </div>
+      )}
 
       <section className="players-board" aria-labelledby="players-board-title">
         <div className="players-board-heading">
@@ -2930,18 +3002,23 @@ function App() {
   const initialQuery = searchParams.get("q") || "";
   const mapMatch = route.match(/^\/maps\/(.+)$/);
   const playerMatch = route.match(/^\/players\/(account|name)\/(.+)$/);
+  const routeNeedsMaps =
+    route === "/" ||
+    route === "/list" ||
+    route === "/csmp" ||
+    route === "/roulette" ||
+    Boolean(mapMatch);
 
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [route, queryString]);
 
   let page = null;
-  if (loading) page = <RoutePageSkeleton route={route} />;
-  else if (error) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
-  else if (route === "/") page = <Home maps={maps} />;
-  else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} />;
+  if (error && routeNeedsMaps) page = <div className="error-state"><strong>데이터를 불러오지 못했습니다.</strong><p>{error}</p></div>;
+  else if (route === "/") page = <Home maps={maps} loading={loading} />;
+  else if (route === "/list") page = <ListPage maps={maps} initialQuery={initialQuery} loading={loading} />;
   else if (route === "/players") page = <PlayerLeaderboardPage />;
-  else if (route === "/csmp") page = <CsmpPage maps={maps} />;
+  else if (route === "/csmp") page = <CsmpPage maps={maps} mapsLoading={loading} />;
   else if (playerMatch) {
     page = (
       <PlayerProfilePage
@@ -2950,9 +3027,9 @@ function App() {
       />
     );
   }
-  else if (route === "/roulette") page = <RoulettePage maps={maps} />;
-  else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} />;
-  else page = <Home maps={maps} />;
+  else if (route === "/roulette") page = <RoulettePage maps={maps} loading={loading} />;
+  else if (mapMatch) page = <MapDetailPage maps={maps} mapKey={mapMatch[1]} loading={loading} />;
+  else page = <Home maps={maps} loading={loading} />;
 
   return (
     <Layout route={route} theme={theme} onToggleTheme={toggleTheme}>
