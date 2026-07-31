@@ -5440,3 +5440,17 @@ svg { width: 1em; height: 1em; display: block; }
     grid-row: 4;
   }
 }
+
+/* Keep progress indicators visibly active even when reduced motion is enabled. */
+.record-refresh.is-loading svg {
+  animation: recordSpin .8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-loader,
+  .record-refresh.is-loading svg,
+  .loading-state span {
+    animation-duration: .8s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

@@ -9,7 +9,7 @@ import {
   formatCorumScore,
   getBestPlayerRecords,
   getCorumBaseScore,
-  getCorumRecordScore,
+  getFrozenOrEstimatedScore,
 } from "./scoring";
 import {
   getLengthBackgroundColor,
@@ -1716,8 +1716,8 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
         if (percentDifference !== 0) return percentDifference;
 
         const scoreDifference =
-          getCorumRecordScore(rank, right.percent, minimumRecord) -
-          getCorumRecordScore(rank, left.percent, minimumRecord);
+          getFrozenOrEstimatedScore(right, rank, minimumRecord) -
+          getFrozenOrEstimatedScore(left, rank, minimumRecord);
         if (scoreDifference !== 0) return scoreDifference;
 
         const rightTime = Date.parse(right.clearedAt) || 0;
@@ -1734,7 +1734,7 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
           <p className="section-kicker">CORUM RECORDS</p>
           <h2 id="record-board-title">등재 기록</h2>
           <p className="record-board-description">
-            등록 기준 <strong>{minimumRecord}%</strong> 이상 · 게임 내 모드에서 직접 전송된 최고 기록
+            등록 기준 <strong>{minimumRecord}%</strong> 이상 · 최고 기록 갱신 시 점수 재확정
           </p>
         </div>
 
@@ -1744,7 +1744,7 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
           </span>
           <button
             type="button"
-            className="record-refresh"
+            className={`record-refresh${loading ? " is-loading" : ""}`}
             onClick={reload}
             disabled={loading}
             aria-label="기록 새로고침"
@@ -1775,9 +1775,9 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
         <div className="record-list">
           {sortedRecords.map((record, index) => {
             const proofUrl = getSafeProofUrl(record.proofUrl);
-            const recordScore = getCorumRecordScore(
+            const recordScore = getFrozenOrEstimatedScore(
+              record,
               rank,
-              record.percent,
               minimumRecord,
             );
             const statusClass =
@@ -1919,7 +1919,7 @@ function PlayerLeaderboardPage() {
 
           <button
             type="button"
-            className="record-refresh"
+            className={`record-refresh${loading ? " is-loading" : ""}`}
             onClick={reload}
             disabled={loading}
           >
@@ -2142,7 +2142,7 @@ function PlayerProfilePage({ identityType, identityValue }) {
           <div>
             <p className="section-kicker">SCORING HISTORY</p>
             <h2 id="player-records-title">등재 맵 기록</h2>
-            <p>각 맵의 최고 기록 하나만 점수에 반영됩니다.</p>
+            <p>각 맵의 최근 최고 기록 갱신 시 확정된 점수를 반영합니다.</p>
           </div>
           <span className="player-profile-record-count">
             {scoringRecords.length} MAP{scoringRecords.length === 1 ? "" : "S"}
