@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CORUM_API_URL } from "./config";
+import { getCorumApiUrl } from "./config";
 
 function toNonNegativeNumber(value) {
   const number = Number(value);
@@ -9,15 +9,31 @@ function toNonNegativeNumber(value) {
 function normalizeScoreRecord(record) {
   if (!record || typeof record !== "object") return null;
 
+  const scoredPercent = toNonNegativeNumber(
+    record.scoredPercent ?? record.initialPercent,
+  );
+  const scoredRank = toNonNegativeNumber(record.scoredRank ?? record.rank);
+  const scoredMinimumRecord = toNonNegativeNumber(
+    record.scoredMinimumRecord ?? record.minimumRecord,
+  );
+
   return {
     levelId: String(record.levelId || "").trim(),
     title: String(record.title || "").trim(),
     rank: toNonNegativeNumber(record.rank),
+    currentRank: toNonNegativeNumber(record.currentRank),
     tier: String(record.tier || "").trim(),
+    currentTier: String(record.currentTier || "").trim(),
     rating: String(record.rating || "").trim(),
     percent: toNonNegativeNumber(record.percent),
-    minimumRecord: toNonNegativeNumber(record.minimumRecord),
+    scoredPercent,
+    scoredRank,
+    scoredMinimumRecord,
+    initialPercent: scoredPercent,
+    minimumRecord: scoredMinimumRecord,
     score: toNonNegativeNumber(record.score),
+    scoringVersion: String(record.scoringVersion || "").trim(),
+    scoreLockedAt: String(record.scoreLockedAt || "").trim(),
     clearedAt: String(record.clearedAt || "").trim(),
     status: String(record.status || "unverified").trim().toLowerCase(),
   };
@@ -64,7 +80,7 @@ export function useScores() {
     setError("");
 
     try {
-      const url = new URL(CORUM_API_URL);
+      const url = new URL(await getCorumApiUrl());
       url.searchParams.set("action", "scores");
       url.searchParams.set("limit", "500");
       url.searchParams.set("_", String(Date.now()));
