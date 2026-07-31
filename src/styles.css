@@ -563,7 +563,9 @@ svg { width: 1em; height: 1em; display: block; }
 .featured-map-header strong { font-size: 31px; line-height: 1; letter-spacing: -.07em; }
 .featured-map-header span:not(.corner-arrow) { margin-top: 5px; color: rgba(255,255,255,.58); font-size: 10px; font-weight: 900; letter-spacing: .14em; }
 .featured-map-content { position: relative; z-index: 1; padding: 24px; }
-.featured-map-content h2 { margin: 15px 0 8px; font-size: clamp(31px, 4vw, 58px); line-height: .93; letter-spacing: -.07em; font-weight: 950; }
+.featured-map-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 15px 0 8px; }
+.featured-map-content .featured-map-title-line h2 { min-width: 0; max-width: 100%; margin: 0; font-size: clamp(31px, 4vw, 58px); line-height: .93; letter-spacing: -.07em; font-weight: 950; }
+.featured-map-title-line .csmp-map-badge { flex: none; }
 .featured-map-card:not(:first-child) .featured-map-content h2 { font-size: clamp(28px, 3vw, 42px); }
 .featured-map-content p { margin: 0; color: rgba(255,255,255,.66); font-size: 12px; font-weight: 650; }
 
@@ -683,6 +685,9 @@ svg { width: 1em; height: 1em; display: block; }
 }
 .ranking-map-copy { min-width: 0; }
 .ranking-map-copy h2 { margin: 0 0 12px; overflow: hidden; text-overflow: ellipsis; font-size: clamp(24px, 2.5vw, 34px); line-height: 1; letter-spacing: -.06em; font-weight: 930; }
+.ranking-map-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; min-width: 0; }
+.ranking-map-copy .ranking-map-title-line h2 { flex: 0 1 auto; min-width: 0; max-width: 100%; margin: 0; }
+.ranking-map-title-line .csmp-map-badge { flex: none; }
 .ranking-people { display: grid; gap: 10px; }
 .ranking-people p { margin: 0; display: flex; flex-direction: column; font-size: 13px; font-weight: 760; }
 .ranking-people span { margin-bottom: 3px; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .14em; }

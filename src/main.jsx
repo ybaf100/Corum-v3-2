@@ -1936,9 +1936,11 @@ function FeaturedMapCard({ item, csmpStages = [] }) {
         <div className="badge-row">
           <RatingBadge rating={item.rating} compact />
           <LengthBadge length={item.length} compact />
+        </div>
+        <div className="featured-map-title-line">
+          <h2>{item.title}</h2>
           <CsmpMapBadge stage={csmpStage} />
         </div>
-        <h2>{item.title}</h2>
         <p>by {item.creator || "Unknown"} · verified by {item.verifier || "Unknown"}</p>
       </div>
     </a>
@@ -2001,11 +2003,13 @@ function RankingRow({ item, query, csmpStages = [] }) {
       <RankingThumbnail item={item} />
 
       <div className="ranking-map-copy">
-        <h2><HighlightText text={item.title} query={query} /></h2>
+        <div className="ranking-map-title-line">
+          <h2><HighlightText text={item.title} query={query} /></h2>
+          <CsmpMapBadge stage={csmpStage} />
+        </div>
         <div className="badge-row">
           <RatingBadge rating={item.rating} compact query={query} />
           <LengthBadge length={item.length} compact query={query} />
-          <CsmpMapBadge stage={csmpStage} />
           <span className="neutral-badge">
             ID <HighlightText text={displayedLevelId} query={query} />
           </span>
