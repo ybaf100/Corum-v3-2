@@ -20,6 +20,7 @@ import {
 import {
   getLengthBackgroundColor,
   getLengthTextColor,
+  getDisplayedLevelId,
   getMapKey,
   getRatingColor,
   getRatingTextColor,
@@ -792,6 +793,7 @@ function waitForRoulette(milliseconds, timerSet, token, tokenRef) {
 
 function RouletteMapCard({ item, preview = false }) {
   const rankNumber = String(item.rank).padStart(3, "0");
+  const displayedLevelId = getDisplayedLevelId(item);
 
   return (
     <article
@@ -821,12 +823,7 @@ function RouletteMapCard({ item, preview = false }) {
         <div className="badge-row">
           <RatingBadge rating={item.rating} compact />
           <LengthBadge length={item.length} compact />
-          <span className="neutral-badge">ID {item.levelId || "-"}</span>
-          {item.alternateLevelId ? (
-            <span className="neutral-badge alternate-level-badge">
-              ALT {item.alternateLevelId}
-            </span>
-          ) : null}
+          <span className="neutral-badge">ID {displayedLevelId}</span>
         </div>
       </div>
 
@@ -1588,6 +1585,7 @@ function HighlightText({ text, query }) {
 function RankingRow({ item, query }) {
   const baseScore = getCorumBaseScore(item.rank);
   const csmpStage = getCsmpStageForMapTitle(item.title);
+  const displayedLevelId = getDisplayedLevelId(item);
 
   return (
     <a
@@ -1610,14 +1608,8 @@ function RankingRow({ item, query }) {
           <LengthBadge length={item.length} compact query={query} />
           <CsmpMapBadge stage={csmpStage} />
           <span className="neutral-badge">
-            ID <HighlightText text={item.levelId || "-"} query={query} />
+            ID <HighlightText text={displayedLevelId} query={query} />
           </span>
-          {item.alternateLevelId ? (
-            <span className="neutral-badge alternate-level-badge">
-              ALT{" "}
-              <HighlightText text={item.alternateLevelId} query={query} />
-            </span>
-          ) : null}
           <span className="map-score-badge">
             <small>100%</small>
             <strong>{formatCorumScore(baseScore)} PTS</strong>
@@ -1726,18 +1718,18 @@ function MapDetailPage({ maps, mapKey }) {
           </div>
           <div className="map-detail-fact">
             <span>맵 코드</span>
-            <strong className="mono map-code-stack">
+            <span className="mono map-code-stack">
               <span>
                 <small>대표</small>
                 {item.levelId || "-"}
               </span>
               {item.alternateLevelId ? (
-                <span>
+                <span className="is-alternate">
                   <small>대체</small>
                   {item.alternateLevelId}
                 </span>
               ) : null}
-            </strong>
+            </span>
           </div>
           <div className="map-detail-fact">
             <span>최소 등록 기록</span>

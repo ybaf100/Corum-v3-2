@@ -86,7 +86,7 @@ export function getCompletedCsmpMapKeys(records) {
     if (status === "rejected" || Number(record?.percent) < 100) continue;
 
     const titleKey = normalizeCsmpMapTitle(record?.title);
-    if (titleKey) completed.add(titleKey);
+    if (titleKey && CSMP_STAGE_BY_MAP.has(titleKey)) completed.add(titleKey);
   }
 
   return completed;

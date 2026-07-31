@@ -251,6 +251,10 @@ export function getMapKey(item) {
   return encodeURIComponent(item.levelId || item.orderId || item.title);
 }
 
+export function getDisplayedLevelId(item) {
+  return String(item?.alternateLevelId || item?.levelId || "").trim() || "-";
+}
+
 export function includesSearch(item, query) {
   if (!query.trim()) return true;
 

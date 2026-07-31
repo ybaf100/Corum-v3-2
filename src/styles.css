@@ -5094,7 +5094,7 @@ svg { width: 1em; height: 1em; display: block; }
   background:
     radial-gradient(circle at 92% 4%, rgba(99, 231, 236, .2), transparent 30%),
     radial-gradient(circle at 4% 100%, rgba(243, 212, 94, .14), transparent 34%),
-    var(--ink);
+    #111318;
   color: #fff;
   box-shadow: 0 25px 65px rgba(0, 0, 0, .2);
 }
@@ -6054,11 +6054,16 @@ svg { width: 1em; height: 1em; display: block; }
   border-style: dashed;
 }
 
-.map-code-stack {
+.map-detail-fact .map-code-stack {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(17px, 1.8vw, 22px);
+  font-weight: 400;
+  letter-spacing: -.02em;
+  text-transform: none;
 }
 
 .map-code-stack > span {
@@ -6071,6 +6076,10 @@ svg { width: 1em; height: 1em; display: block; }
   font-weight: inherit;
   letter-spacing: inherit;
   text-transform: none;
+}
+
+.map-code-stack > span.is-alternate {
+  font-weight: 950;
 }
 
 .map-code-stack small {
