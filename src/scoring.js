@@ -112,3 +112,50 @@ export function getBestPlayerRecords(records) {
 
   return [...bestByPlayer.values()];
 }
+
+function normalizePlayerName(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+export function pinVerifierRecord(records, verifier, levelId) {
+  const verifierName = String(verifier || "").trim();
+  const verifierKey = normalizePlayerName(verifierName);
+  if (!verifierKey || /^(?:unknown|n\/?a|-)$/.test(verifierKey)) {
+    return [...(records || [])];
+  }
+
+  let submittedRecord = null;
+  const otherRecords = [];
+
+  for (const record of records || []) {
+    if (normalizePlayerName(record?.player) === verifierKey) {
+      if (!submittedRecord) submittedRecord = record;
+      continue;
+    }
+    otherRecords.push(record);
+  }
+
+  const submittedPercent = Number(submittedRecord?.percent);
+  const verifierRecord = {
+    ...(submittedRecord || {}),
+    recordId:
+      String(submittedRecord?.recordId || "").trim() ||
+      `verifier:${String(levelId || "").trim()}:${verifierKey}`,
+    levelId:
+      String(submittedRecord?.levelId || "").trim() ||
+      String(levelId || "").trim(),
+    player: verifierName,
+    percent: 100,
+    status: "verified",
+    score:
+      submittedRecord && submittedPercent >= 100
+        ? submittedRecord.score
+        : null,
+    isVerifierRecord: true,
+  };
+
+  return [verifierRecord, ...otherRecords];
+}

@@ -45,6 +45,7 @@ function normalizeRecord(record) {
     score: toOptionalNonNegativeNumber(record?.score),
     scoringVersion: String(record?.scoringVersion || "").trim(),
     scoreLockedAt: String(record?.scoreLockedAt || "").trim(),
+    isVerifierRecord: Boolean(record?.isVerifierRecord),
   };
 }
 

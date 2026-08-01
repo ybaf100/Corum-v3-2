@@ -1767,6 +1767,10 @@ svg { width: 1em; height: 1em; display: block; }
   background: #f8f8f5;
 }
 
+.record-row.is-verifier-record {
+  box-shadow: inset 3px 0 0 var(--rank-main-aqua);
+}
+
 .record-position {
   color: var(--soft);
   font-size: 15px;
@@ -1802,12 +1806,35 @@ svg { width: 1em; height: 1em; display: block; }
 }
 
 .record-player strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   overflow: hidden;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: -.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.record-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-verifier-badge {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--rank-main-aqua) 58%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rank-main-aqua) 14%, transparent);
+  color: color-mix(in srgb, var(--rank-main-aqua) 66%, var(--ink));
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .08em;
 }
 
 .record-player > div > span {

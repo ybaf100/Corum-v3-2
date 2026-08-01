@@ -37,6 +37,7 @@ function normalizeScoreRecord(record) {
     scoreLockedAt: String(record.scoreLockedAt || "").trim(),
     clearedAt: String(record.clearedAt || "").trim(),
     status: String(record.status || "unverified").trim().toLowerCase(),
+    isVerifierRecord: Boolean(record.isVerifierRecord),
   };
 }
 

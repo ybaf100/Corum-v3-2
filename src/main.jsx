@@ -19,6 +19,7 @@ import {
   getBestPlayerRecords,
   getCorumBaseScore,
   getFrozenOrEstimatedScore,
+  pinVerifierRecord,
 } from "./scoring";
 import {
   getLengthBackgroundColor,
@@ -2162,6 +2163,7 @@ function MapDetailPage({ maps, mapKey, loading = false }) {
         levelId={item.levelId}
         rank={item.rank}
         minimumRecord={item.minimumRecord}
+        verifier={item.verifier}
       />
     </section>
   );
@@ -2206,11 +2208,11 @@ function formatPlayTime(milliseconds) {
   return `${seconds}초`;
 }
 
-function RecordLeaderboard({ levelId, rank, minimumRecord }) {
+function RecordLeaderboard({ levelId, rank, minimumRecord, verifier }) {
   const { records, loading, error, reload } = useRecords(levelId);
   const sortedRecords = useMemo(
-    () =>
-      getBestPlayerRecords(records).sort((left, right) => {
+    () => {
+      const bestRecords = getBestPlayerRecords(records).sort((left, right) => {
         const percentDifference = (right.percent ?? -1) - (left.percent ?? -1);
         if (percentDifference !== 0) return percentDifference;
 
@@ -2222,8 +2224,11 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
         const rightTime = Date.parse(right.clearedAt) || 0;
         const leftTime = Date.parse(left.clearedAt) || 0;
         return rightTime - leftTime;
-      }),
-    [records, rank, minimumRecord],
+      });
+
+      return pinVerifierRecord(bestRecords, verifier, levelId);
+    },
+    [records, rank, minimumRecord, verifier, levelId],
   );
 
   return (
@@ -2254,7 +2259,7 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
         </div>
       </div>
 
-      {loading && sortedRecords.length === 0 ? (
+      {loading && records.length === 0 ? (
         <RecordRowsSkeleton count={4} />
       ) : error ? (
         <div className="record-state is-error">
@@ -2285,7 +2290,7 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
 
             return (
               <article
-                className="record-row"
+                className={`record-row${record.isVerifierRecord ? " is-verifier-record" : ""}`}
                 key={record.recordId || `${record.levelId}-${record.player}-${record.clearedAt}-${index}`}
               >
                 <span className="record-position">#{index + 1}</span>
@@ -2295,7 +2300,12 @@ function RecordLeaderboard({ levelId, rank, minimumRecord }) {
                     {(record.player || "?").charAt(0).toUpperCase()}
                   </span>
                   <div>
-                    <strong>{record.player}</strong>
+                    <strong>
+                      <span className="record-player-name">{record.player}</span>
+                      {record.isVerifierRecord && (
+                        <em className="record-verifier-badge">VERIFIER</em>
+                      )}
+                    </strong>
                     <span>{formatRecordDate(record.clearedAt)}</span>
                   </div>
                 </div>
