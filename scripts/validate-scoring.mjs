@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   formatCorumScore,
   getBestPlayerRecords,
@@ -90,5 +91,22 @@ assert.deepEqual(
   pinVerifierRecord([{ player: "Other", percent: 100 }], "Unknown", "12345"),
   [{ player: "Other", percent: 100 }],
 );
+
+const mainSource = fs.readFileSync(
+  new URL("../src/main.jsx", import.meta.url),
+  "utf8",
+);
+const scoreHookSource = fs.readFileSync(
+  new URL("../src/useScores.js", import.meta.url),
+  "utf8",
+);
+
+assert.match(mainSource, /href=\{getPlayerProfileHref\(record\)\}/);
+assert.match(mainSource, /scoringRecords\.filter\(\(record\) => !record\.isVerifierRecord\)/);
+assert.match(mainSource, /scoringRecords\.filter\(\(record\) => record\.isVerifierRecord\)/);
+assert.match(mainSource, /className="player-profile-verifier-records"/);
+assert.match(mainSource, /player-profile-verified-tag">VERIFIED/);
+assert.match(mainSource, /registrationStatus === "temporary"/);
+assert.match(scoreHookSource, /registrationStatus:/);
 
 console.log("Corum scoring validation passed.");
