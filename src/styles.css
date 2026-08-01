@@ -1821,6 +1821,17 @@ svg { width: 1em; height: 1em; display: block; }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color .18s ease;
+}
+
+.record-player-name:hover {
+  color: #245bc6;
+}
+
+.record-player-name:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #245bc6;
+  outline-offset: 3px;
 }
 
 .record-verifier-badge {
@@ -4888,6 +4899,38 @@ svg { width: 1em; height: 1em; display: block; }
   gap: 5px;
 }
 
+.player-score-name-line,
+.player-profile-name-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-score-name-line > strong {
+  min-width: 0;
+}
+
+.player-registration-badge {
+  flex: none;
+  padding: 4px 7px;
+  border: 1px solid rgba(226, 144, 31, .35);
+  border-radius: 999px;
+  background: rgba(255, 188, 78, .18);
+  color: #9a5e06;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .09em;
+}
+
+.player-registration-badge.is-profile {
+  padding: 6px 9px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
 .player-score-identity strong {
   overflow: hidden;
   font-size: 16px;
@@ -5634,12 +5677,75 @@ svg { width: 1em; height: 1em; display: block; }
   letter-spacing: -.06em;
 }
 
-.player-profile-records {
+.player-profile-records,
+.player-profile-verifier-records {
   overflow: hidden;
   border: 1px solid var(--line-dark);
   border-radius: 28px;
   background: rgba(255, 255, 255, .94);
   box-shadow: var(--shadow-soft);
+}
+
+.player-profile-verifier-records {
+  margin-top: 18px;
+}
+
+.player-profile-verifier-records > summary {
+  min-height: 126px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+  align-items: center;
+  gap: 18px;
+  padding: 25px 28px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.player-profile-verifier-records > summary::-webkit-details-marker {
+  display: none;
+}
+
+.player-profile-verifier-records > summary > div {
+  min-width: 0;
+}
+
+.player-profile-verifier-records > summary h2 {
+  margin: 3px 0 5px;
+  font-size: clamp(25px, 3vw, 36px);
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.player-profile-verifier-records > summary p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.player-profile-details-toggle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-dark);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.player-profile-verifier-records[open] .player-profile-details-toggle {
+  transform: rotate(180deg);
+  color: #245bc6;
+  border-color: #245bc6;
+}
+
+.player-profile-verifier-records[open] > summary {
+  border-bottom: 1px solid var(--line);
 }
 
 .player-profile-record-count {
@@ -5682,13 +5788,32 @@ svg { width: 1em; height: 1em; display: block; }
   gap: 5px;
 }
 
-.player-profile-map > span,
+.player-profile-map-labels,
 .player-profile-progress > span,
 .player-profile-record-score > span {
   color: var(--soft);
   font-size: 8px;
   font-weight: 900;
   letter-spacing: .11em;
+}
+
+.player-profile-map-labels {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.player-profile-verified-tag {
+  padding: 3px 6px;
+  border: 1px solid rgba(24, 158, 83, .28);
+  border-radius: 999px;
+  background: rgba(29, 169, 87, .12);
+  color: #147b40;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .08em;
 }
 
 .player-profile-map a {
@@ -5900,6 +6025,16 @@ svg { width: 1em; height: 1em; display: block; }
     align-self: flex-start;
   }
 
+  .player-profile-verifier-records > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 22px 20px;
+  }
+
+  .player-profile-details-toggle {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .player-profile-record-row {
     grid-template-columns: 42px minmax(0, 1fr) auto;
     gap: 14px;
@@ -6019,8 +6154,24 @@ svg { width: 1em; height: 1em; display: block; }
     grid-row: 2;
   }
 
-  .player-profile-records {
+  .player-profile-records,
+  .player-profile-verifier-records {
     border-radius: 22px;
+  }
+
+  .player-profile-name-line {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .player-profile-verifier-records > summary {
+    grid-template-columns: minmax(0, 1fr) 34px;
+  }
+
+  .player-profile-verifier-records > summary .player-profile-record-count {
+    grid-column: 1;
+    margin-top: 12px;
   }
 
   .player-profile-record-row {

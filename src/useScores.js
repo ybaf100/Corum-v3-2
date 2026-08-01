@@ -53,6 +53,9 @@ function normalizePlayer(entry, csmpStages) {
     rank: Math.max(1, Math.trunc(toNonNegativeNumber(entry?.rank) || 1)),
     accountId: String(entry?.accountId || "").trim(),
     player: String(entry?.player || "").trim(),
+    registrationStatus: String(
+      entry?.registrationStatus || (entry?.accountId ? "registered" : "temporary"),
+    ).trim().toLowerCase(),
     score: toNonNegativeNumber(entry?.score),
     recordCount: Math.trunc(toNonNegativeNumber(entry?.recordCount)),
     completions: Math.trunc(toNonNegativeNumber(entry?.completions)),

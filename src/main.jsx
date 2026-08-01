@@ -2301,9 +2301,15 @@ function RecordLeaderboard({ levelId, rank, minimumRecord, verifier }) {
                   </span>
                   <div>
                     <strong>
-                      <span className="record-player-name">{record.player}</span>
+                      <a
+                        className="record-player-name"
+                        href={getPlayerProfileHref(record)}
+                        aria-label={`${record.player} 프로필 보기`}
+                      >
+                        {record.player}
+                      </a>
                       {record.isVerifierRecord && (
-                        <em className="record-verifier-badge">VERIFIER</em>
+                        <em className="record-verifier-badge">VERIFIED</em>
                       )}
                     </strong>
                     <span>{formatRecordDate(record.clearedAt)}</span>
@@ -2756,7 +2762,12 @@ function PlayerLeaderboardPage({ csmpStages = [], csmpLoading = false }) {
                       <CsmpRankIcon rank={player.csmp.current} />
                     </span>
                     <div>
-                      <strong>{player.player}</strong>
+                      <span className="player-score-name-line">
+                        <strong>{player.player}</strong>
+                        {player.registrationStatus === "temporary" && (
+                          <em className="player-registration-badge">TEMP</em>
+                        )}
+                      </span>
                       <span>{player.recordCount} scoring record{player.recordCount === 1 ? "" : "s"}</span>
                     </div>
                   </a>
@@ -2792,6 +2803,58 @@ function PlayerLeaderboardPage({ csmpStages = [], csmpLoading = false }) {
 
       <ScoreScaleCard />
     </section>
+  );
+}
+
+function PlayerProfileRecordList({ records }) {
+  return (
+    <div className="player-profile-record-list">
+      {records.map((record, index) => {
+        const statusClass =
+          record.status === "verified"
+            ? "is-verified"
+            : record.status === "rejected"
+              ? "is-rejected"
+              : "is-unverified";
+
+        return (
+          <article
+            className={`player-profile-record-row ${getRankBorderClass(record.rank)}`}
+            key={`${record.levelId}-${record.clearedAt || index}-${record.isVerifierRecord ? "verifier" : "submitted"}`}
+          >
+            <span className="player-profile-map-rank">#{record.rank}</span>
+
+            <div className="player-profile-map">
+              <span className="player-profile-map-labels">
+                <span>{record.tier || getTier(record.rank)}</span>
+                {record.isVerifierRecord && (
+                  <em className="player-profile-verified-tag">VERIFIED</em>
+                )}
+              </span>
+              <a href={`#/maps/${encodeURIComponent(record.levelId)}`}>
+                {record.title || record.levelId}
+              </a>
+              <small>{formatRecordDate(record.clearedAt)}</small>
+            </div>
+
+            <div className="player-profile-progress">
+              <span>BEST</span>
+              <strong>{record.percent}%</strong>
+              <small>MIN {record.minimumRecord || 100}%</small>
+            </div>
+
+            <span className={`record-status ${statusClass}`}>
+              {getRecordStatusLabel(record.status)}
+            </span>
+
+            <div className="player-profile-record-score">
+              <strong>{formatCorumScore(record.score)}</strong>
+              <span>PTS</span>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2838,6 +2901,14 @@ function PlayerProfilePage({
       return right.percent - left.percent;
     });
   }, [player]);
+  const submittedRecords = useMemo(
+    () => scoringRecords.filter((record) => !record.isVerifierRecord),
+    [scoringRecords],
+  );
+  const verifierRecords = useMemo(
+    () => scoringRecords.filter((record) => record.isVerifierRecord),
+    [scoringRecords],
+  );
 
   if (loading && !player) {
     return <PlayerProfileSkeleton />;
@@ -2888,7 +2959,12 @@ function PlayerProfilePage({
           </span>
           <div>
             <p className="section-kicker">CORUM PLAYER PROFILE</p>
-            <h1>{player.player}</h1>
+            <div className="player-profile-name-line">
+              <h1>{player.player}</h1>
+              {player.registrationStatus === "temporary" && (
+                <span className="player-registration-badge is-profile">임시 가입</span>
+              )}
+            </div>
             <div
               className={`player-profile-csmp csmp-${
                 currentCsmpRank?.key || "unranked"
@@ -2906,7 +2982,7 @@ function PlayerProfilePage({
             <p>
               {player.accountId
                 ? `GD ACCOUNT ${player.accountId}`
-                : "GEOMETRY DASH PLAYER"}
+                : "TEMPORARY VERIFIER PROFILE"}
               {generatedAt && ` · ${formatRecordDate(generatedAt)} 기준`}
             </p>
           </div>
@@ -2952,63 +3028,42 @@ function PlayerProfilePage({
         <div className="players-board-heading">
           <div>
             <p className="section-kicker">SCORING HISTORY</p>
-            <h2 id="player-records-title">등재 맵 기록</h2>
-            <p>각 맵의 최근 최고 기록 갱신 시 확정된 점수를 반영합니다.</p>
+            <h2 id="player-records-title">제출 기록</h2>
+            <p>게임에서 직접 제출한 각 맵의 최고 기록과 확정 점수입니다.</p>
           </div>
           <span className="player-profile-record-count">
-            {scoringRecords.length} MAP{scoringRecords.length === 1 ? "" : "S"}
+            {submittedRecords.length} MAP{submittedRecords.length === 1 ? "" : "S"}
           </span>
         </div>
 
-        {scoringRecords.length === 0 ? (
+        {submittedRecords.length === 0 ? (
           <div className="record-state">
-            <strong>표시할 상세 기록이 없습니다.</strong>
+            <strong>직접 제출한 등재 기록이 없습니다.</strong>
           </div>
         ) : (
-          <div className="player-profile-record-list">
-            {scoringRecords.map((record, index) => {
-              const statusClass =
-                record.status === "verified"
-                  ? "is-verified"
-                  : record.status === "rejected"
-                    ? "is-rejected"
-                    : "is-unverified";
-
-              return (
-                <article
-                  className={`player-profile-record-row ${getRankBorderClass(record.rank)}`}
-                  key={`${record.levelId}-${record.clearedAt || index}`}
-                >
-                  <span className="player-profile-map-rank">#{record.rank}</span>
-
-                  <div className="player-profile-map">
-                    <span>{record.tier || getTier(record.rank)}</span>
-                    <a href={`#/maps/${encodeURIComponent(record.levelId)}`}>
-                      {record.title || record.levelId}
-                    </a>
-                    <small>{formatRecordDate(record.clearedAt)}</small>
-                  </div>
-
-                  <div className="player-profile-progress">
-                    <span>BEST</span>
-                    <strong>{record.percent}%</strong>
-                    <small>MIN {record.minimumRecord || 100}%</small>
-                  </div>
-
-                  <span className={`record-status ${statusClass}`}>
-                    {getRecordStatusLabel(record.status)}
-                  </span>
-
-                  <div className="player-profile-record-score">
-                    <strong>{formatCorumScore(record.score)}</strong>
-                    <span>PTS</span>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+          <PlayerProfileRecordList records={submittedRecords} />
         )}
       </section>
+
+      {verifierRecords.length > 0 && (
+        <details
+          className="player-profile-verifier-records"
+          open={submittedRecords.length === 0}
+        >
+          <summary>
+            <div>
+              <p className="section-kicker">VERIFIER HISTORY</p>
+              <h2>Verify한 맵</h2>
+              <p>맵 등록 당시 Verifier에게 고정된 100% 기록과 점수입니다.</p>
+            </div>
+            <span className="player-profile-record-count">
+              {verifierRecords.length} MAP{verifierRecords.length === 1 ? "" : "S"}
+            </span>
+            <span className="player-profile-details-toggle" aria-hidden="true">⌄</span>
+          </summary>
+          <PlayerProfileRecordList records={verifierRecords} />
+        </details>
+      )}
     </section>
   );
 }
