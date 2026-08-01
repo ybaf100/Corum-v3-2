@@ -5,6 +5,7 @@ import {
   getCorumBaseScore,
   getFrozenOrEstimatedScore,
   getCorumRecordScore,
+  pinVerifierRecord,
 } from "../src/scoring.js";
 
 const closeTo = (actual, expected, tolerance = 1e-9) => {
@@ -54,5 +55,40 @@ const deduplicated = getBestPlayerRecords([
 
 assert.equal(deduplicated.length, 2);
 assert.equal(deduplicated.find((record) => record.accountId === "1")?.percent, 80);
+
+const automaticVerifier = pinVerifierRecord(deduplicated, "Verifier", "12345");
+assert.equal(automaticVerifier.length, 3);
+assert.equal(automaticVerifier[0].player, "Verifier");
+assert.equal(automaticVerifier[0].percent, 100);
+assert.equal(automaticVerifier[0].status, "verified");
+assert.equal(automaticVerifier[0].isVerifierRecord, true);
+assert.equal(automaticVerifier[0].levelId, "12345");
+
+const submittedVerifier = pinVerifierRecord(
+  [
+    { player: "Other", percent: 100 },
+    {
+      recordId: "submitted",
+      player: "verifier",
+      percent: 75,
+      attempts: 20,
+      status: "unverified",
+      score: 10,
+    },
+  ],
+  "Verifier",
+  "12345",
+);
+assert.equal(submittedVerifier.length, 2);
+assert.equal(submittedVerifier[0].recordId, "submitted");
+assert.equal(submittedVerifier[0].attempts, 20);
+assert.equal(submittedVerifier[0].percent, 100);
+assert.equal(submittedVerifier[0].score, null);
+assert.equal(submittedVerifier[1].player, "Other");
+
+assert.deepEqual(
+  pinVerifierRecord([{ player: "Other", percent: 100 }], "Unknown", "12345"),
+  [{ player: "Other", percent: 100 }],
+);
 
 console.log("Corum scoring validation passed.");
